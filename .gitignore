@@ -1,0 +1,32 @@
+# Secrets — NEVER commit
+.env
+
+# .NET build outputs
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+# Rider / JetBrains
+.idea/
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Docker volumes (local dev data)
+pgdata/
+minio-data/
