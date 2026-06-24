@@ -1,5 +1,7 @@
 # Booking Platform
 
+> Repository: [https://github.com/joserodriguez18/Booking](https://github.com/joserodriguez18/Booking)
+
 A short-term rental platform that connects guests and property owners. It includes property search, conflict-free date booking, wishlists, AI-powered identity verification (KYC), and a performance dashboard with metrics for owners.
 
 ---

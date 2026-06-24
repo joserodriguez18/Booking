@@ -1,5 +1,7 @@
 # Booking Platform
 
+> Repositorio: [https://github.com/joserodriguez18/Booking](https://github.com/joserodriguez18/Booking)
+
 Plataforma de rentas cortas que conecta huéspedes y propietarios. Incluye búsqueda de inmuebles, reservas con prevención de conflictos de fechas, lista de favoritos, verificación de identidad mediante Inteligencia Artificial (KYC) y un panel de control con métricas para propietarios.
 
 ---
