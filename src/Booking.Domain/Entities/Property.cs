@@ -26,16 +26,16 @@ public sealed class Property : BaseEntity
 
     public static Property Create(string name, string description, string location, Money pricePerNight, Guid ownerId)
     {
-        if (string.IsNullOrWhiteSpace(name))     throw new DomainException("Property name is required.");
-        if (string.IsNullOrWhiteSpace(location)) throw new DomainException("Location is required.");
-        if (ownerId == Guid.Empty)               throw new DomainException("Owner is required.");
+        if (string.IsNullOrWhiteSpace(name))     throw new DomainException("El nombre de la propiedad es obligatorio.");
+        if (string.IsNullOrWhiteSpace(location)) throw new DomainException("La ubicación es obligatoria.");
+        if (ownerId == Guid.Empty)               throw new DomainException("El propietario es obligatorio.");
         return new Property(name, description, location, pricePerNight, ownerId);
     }
 
     public void Update(string name, string description, string location, Money pricePerNight)
     {
-        if (string.IsNullOrWhiteSpace(name))     throw new DomainException("Property name is required.");
-        if (string.IsNullOrWhiteSpace(location)) throw new DomainException("Location is required.");
+        if (string.IsNullOrWhiteSpace(name))     throw new DomainException("El nombre de la propiedad es obligatorio.");
+        if (string.IsNullOrWhiteSpace(location)) throw new DomainException("La ubicación es obligatoria.");
         Name = name;
         Description = description;
         Location = location;

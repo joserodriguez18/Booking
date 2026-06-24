@@ -41,8 +41,8 @@ public sealed class Booking : BaseEntity
         Money pricePerNight,
         IEnumerable<Booking> existingConfirmedBookings)
     {
-        if (propertyId == Guid.Empty) throw new DomainException("Property is required.");
-        if (guestId    == Guid.Empty) throw new DomainException("Guest is required.");
+        if (propertyId == Guid.Empty) throw new DomainException("La propiedad es obligatoria.");
+        if (guestId    == Guid.Empty) throw new DomainException("El huésped es obligatorio.");
 
         var dateRange = BookingDateRange.Create(checkInDate, checkOutDate);
 
@@ -55,7 +55,7 @@ public sealed class Booking : BaseEntity
     public void Confirm(IEnumerable<Booking> existingConfirmedBookings)
     {
         if (Status != BookingStatus.Pending)
-            throw new DomainException($"Only pending bookings can be confirmed. Current status: {Status}.");
+            throw new DomainException($"Solo las reservas pendientes pueden confirmarse. Estado actual: {Status}.");
 
         EnsureNoConflict(PropertyId, DateRange, existingConfirmedBookings);
         Status = BookingStatus.Confirmed;
@@ -65,9 +65,9 @@ public sealed class Booking : BaseEntity
     public void Cancel()
     {
         if (Status == BookingStatus.Cancelled)
-            throw new DomainException("Booking is already cancelled.");
+            throw new DomainException("La reserva ya fue cancelada.");
         if (Status == BookingStatus.Confirmed && CheckInDate <= DateTimeOffset.UtcNow)
-            throw new DomainException("Cannot cancel a booking after check-in has passed.");
+            throw new DomainException("No se puede cancelar una reserva después de la fecha de check-in.");
         Status = BookingStatus.Cancelled;
         SetUpdatedAt();
     }

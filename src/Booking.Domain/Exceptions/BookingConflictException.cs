@@ -3,5 +3,5 @@ namespace Booking.Domain.Exceptions;
 public sealed class BookingConflictException : DomainException
 {
     public BookingConflictException(Guid propertyId, DateTimeOffset checkIn, DateTimeOffset checkOut)
-        : base($"Property {propertyId} already has a confirmed booking overlapping {checkIn:yyyy-MM-dd} → {checkOut:yyyy-MM-dd}.") { }
+        : base($"La propiedad ya tiene una reserva confirmada que se superpone con las fechas {checkIn:dd/MM/yyyy} → {checkOut:dd/MM/yyyy}.") { }
 }

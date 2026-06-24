@@ -20,7 +20,7 @@ public sealed class BookingDateRange
     public static BookingDateRange Create(DateOnly checkInDate, DateOnly checkOutDate)
     {
         if (checkOutDate <= checkInDate)
-            throw new DomainException("Check-out date must be strictly after check-in date.");
+            throw new DomainException("La fecha de salida debe ser posterior a la fecha de entrada.");
 
         var checkIn  = new DateTimeOffset(checkInDate.Year,  checkInDate.Month,  checkInDate.Day,  14, 0, 0, TimeSpan.Zero);
         var checkOut = new DateTimeOffset(checkOutDate.Year, checkOutDate.Month, checkOutDate.Day, 12, 0, 0, TimeSpan.Zero);

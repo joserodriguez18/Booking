@@ -7,9 +7,9 @@ public sealed record Money(decimal Amount, string Currency = "USD")
     public static Money Of(decimal amount, string currency = "USD")
     {
         if (amount < 0)
-            throw new DomainException("Amount cannot be negative.");
+            throw new DomainException("El monto no puede ser negativo.");
         if (string.IsNullOrWhiteSpace(currency))
-            throw new DomainException("Currency is required.");
+            throw new DomainException("La moneda es obligatoria.");
         return new Money(amount, currency.ToUpperInvariant());
     }
 

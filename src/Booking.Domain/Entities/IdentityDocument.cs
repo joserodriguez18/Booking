@@ -34,14 +34,14 @@ public sealed class IdentityDocument : BaseEntity
 
     public static IdentityDocument CreatePending(Guid userId, DocumentType documentType)
     {
-        if (userId == Guid.Empty) throw new DomainException("User is required.");
+        if (userId == Guid.Empty) throw new DomainException("El usuario es obligatorio.");
         return new IdentityDocument(userId, documentType);
     }
 
     public void SetDocumentUrl(string objectKey)
     {
         if (string.IsNullOrWhiteSpace(objectKey))
-            throw new DomainException("Document URL/key is required.");
+            throw new DomainException("La clave del documento en almacenamiento es obligatoria.");
         DocumentUrl = objectKey;
         SetUpdatedAt();
     }
@@ -51,8 +51,8 @@ public sealed class IdentityDocument : BaseEntity
     /// </summary>
     public void ApplyExtractedData(string documentNumber, string extractedNames, DateOnly birthDate)
     {
-        if (string.IsNullOrWhiteSpace(documentNumber)) throw new DomainException("Document number is required.");
-        if (string.IsNullOrWhiteSpace(extractedNames)) throw new DomainException("Extracted names are required.");
+        if (string.IsNullOrWhiteSpace(documentNumber)) throw new DomainException("El número de documento es obligatorio.");
+        if (string.IsNullOrWhiteSpace(extractedNames)) throw new DomainException("Los nombres extraídos son obligatorios.");
         DocumentNumber      = documentNumber;
         ExtractedNames      = extractedNames;
         ExtractedBirthDate  = birthDate;

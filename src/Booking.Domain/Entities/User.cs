@@ -5,13 +5,16 @@ namespace Booking.Domain.Entities;
 
 public sealed class User : BaseEntity
 {
-    public string Name { get; private set; } = string.Empty;
-    public string Email { get; private set; } = string.Empty;
-    public string PasswordHash { get; private set; } = string.Empty;
-    public UserRole Role { get; private set; }
-    public KycStatus KycStatus { get; private set; } = KycStatus.NotStarted;
+    public string   Name              { get; private set; } = string.Empty;
+    public string   Email             { get; private set; } = string.Empty;
+    public string   PasswordHash      { get; private set; } = string.Empty;
+    public UserRole Role              { get; private set; }
+    public KycStatus KycStatus        { get; private set; } = KycStatus.NotStarted;
 
-    // Convenience property: true only when KYC is fully approved.
+    // Datos extraídos del documento de identidad durante el proceso KYC
+    public string?   NumeroDocumento  { get; private set; }
+    public DateOnly? FechaNacimiento  { get; private set; }
+
     public bool IsIdentityVerified => KycStatus == KycStatus.Approved;
 
     private User() { } // Required by EF Core
@@ -26,23 +29,25 @@ public sealed class User : BaseEntity
 
     public static User Create(string name, string email, string passwordHash, UserRole role)
     {
-        if (string.IsNullOrWhiteSpace(name)) throw new DomainException("Name is required.");
-        if (string.IsNullOrWhiteSpace(email)) throw new DomainException("Email is required.");
-        if (string.IsNullOrWhiteSpace(passwordHash)) throw new DomainException("Password hash is required.");
+        if (string.IsNullOrWhiteSpace(name)) throw new DomainException("El nombre es obligatorio.");
+        if (string.IsNullOrWhiteSpace(email)) throw new DomainException("El correo electrónico es obligatorio.");
+        if (string.IsNullOrWhiteSpace(passwordHash)) throw new DomainException("El hash de contraseña es obligatorio.");
         return new User(name, email.ToLowerInvariant().Trim(), passwordHash, role);
     }
 
     public void SetKycPending()
     {
         if (KycStatus == KycStatus.Approved)
-            throw new DomainException("Identity is already verified.");
+            throw new DomainException("La identidad de este usuario ya fue verificada.");
         KycStatus = KycStatus.Pending;
         SetUpdatedAt();
     }
 
-    public void ApproveKyc()
+    public void ApproveKyc(string? numeroDocumento = null, DateOnly? fechaNacimiento = null)
     {
-        KycStatus = KycStatus.Approved;
+        KycStatus        = KycStatus.Approved;
+        NumeroDocumento  = numeroDocumento;
+        FechaNacimiento  = fechaNacimiento;
         SetUpdatedAt();
     }
 
