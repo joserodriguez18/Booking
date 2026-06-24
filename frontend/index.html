@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BookingApp — Encuentra tu alojamiento</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <!-- Navbar -->
+  <nav class="bg-white border-b border-gray-100 sticky top-0 z-40 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+      <a href="index.html" class="text-rose-500 font-bold text-xl flex items-center gap-1.5">🏠 BookingApp</a>
+      <div id="nav-user" class="flex items-center gap-3"></div>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <div class="bg-gradient-to-br from-rose-500 via-rose-400 to-pink-500 text-white py-16 px-4">
+    <div class="max-w-3xl mx-auto text-center">
+      <h1 class="text-4xl sm:text-5xl font-bold mb-3">Encuentra tu alojamiento perfecto</h1>
+      <p class="text-rose-100 text-lg mb-8">Descubre propiedades únicas para tus próximas vacaciones</p>
+
+      <!-- Buscador -->
+      <div class="bg-white rounded-2xl shadow-xl p-2 flex flex-col sm:flex-row gap-1">
+        <div class="flex-1 flex items-center gap-2 px-3 py-2">
+          <span class="text-gray-400 text-lg">📍</span>
+          <div class="flex-1">
+            <div class="text-xs text-gray-400 font-medium">¿A dónde?</div>
+            <input id="loc" type="text" placeholder="Ciudad, región..."
+              class="w-full outline-none text-sm text-gray-800 placeholder-gray-300">
+          </div>
+        </div>
+        <div class="w-px bg-gray-100 hidden sm:block"></div>
+        <div class="flex items-center gap-2 px-3 py-2">
+          <span class="text-gray-400">📅</span>
+          <div>
+            <div class="text-xs text-gray-400 font-medium">Check-in</div>
+            <input id="checkIn" type="date" class="outline-none text-sm text-gray-800 w-32">
+          </div>
+        </div>
+        <div class="w-px bg-gray-100 hidden sm:block"></div>
+        <div class="flex items-center gap-2 px-3 py-2">
+          <span class="text-gray-400">📅</span>
+          <div>
+            <div class="text-xs text-gray-400 font-medium">Check-out</div>
+            <input id="checkOut" type="date" class="outline-none text-sm text-gray-800 w-32">
+          </div>
+        </div>
+        <button onclick="buscar()"
+          class="bg-rose-500 hover:bg-rose-600 text-white px-6 py-3 rounded-xl font-semibold text-sm transition-colors sm:m-1">
+          Buscar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Resultados -->
+  <div class="max-w-7xl mx-auto px-4 py-10">
+    <h2 id="titulo" class="text-lg font-semibold text-gray-700 mb-6">Propiedades disponibles</h2>
+
+    <div id="loading" class="text-center py-20 text-gray-400">
+      <div class="text-4xl mb-3 animate-pulse">🏠</div>
+      <p>Cargando propiedades...</p>
+    </div>
+
+    <div id="grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"></div>
+
+    <div id="empty" class="hidden text-center py-20 text-gray-400">
+      <div class="text-5xl mb-4">🏚️</div>
+      <p class="text-lg font-medium">Sin resultados</p>
+      <p class="text-sm mt-1">Prueba con otra ubicación o diferentes fechas</p>
+      <button onclick="limpiar()" class="mt-4 text-sm text-rose-500 underline">Ver todas las propiedades</button>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script>
+    renderNav();
+
+    function propCard(p) {
+      const foto   = p.photoUrls?.[0] || PLACEHOLDER;
+      const precio = formatPrecio(p.pricePerNight, p.currency);
+      return `
+        <a href="property.html?id=${p.id}"
+           class="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all group">
+          <div class="h-48 overflow-hidden bg-gray-100">
+            <img src="${foto}" alt="${p.name}"
+              class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              onerror="this.src='${PLACEHOLDER}'">
+          </div>
+          <div class="p-4">
+            <h3 class="font-semibold text-gray-800 text-sm leading-snug mb-1 line-clamp-1">${p.name}</h3>
+            <p class="text-gray-400 text-xs mb-3">📍 ${p.location}</p>
+            <div class="flex items-baseline gap-1">
+              <span class="font-bold text-gray-900">${precio}</span>
+              <span class="text-gray-400 text-xs">/ noche</span>
+            </div>
+          </div>
+        </a>`;
+    }
+
+    async function buscar() {
+      const loc     = document.getElementById('loc').value.trim();
+      const checkIn = document.getElementById('checkIn').value;
+      const checkOut= document.getElementById('checkOut').value;
+
+      document.getElementById('loading').classList.remove('hidden');
+      document.getElementById('grid').innerHTML = '';
+      document.getElementById('empty').classList.add('hidden');
+
+      try {
+        const props = await api.getProperties({ ubicacion: loc, checkIn, checkOut });
+        document.getElementById('loading').classList.add('hidden');
+
+        if (!props.length) {
+          document.getElementById('empty').classList.remove('hidden');
+          document.getElementById('titulo').textContent = 'Sin resultados';
+          return;
+        }
+        document.getElementById('titulo').textContent =
+          `${props.length} propiedad${props.length > 1 ? 'es' : ''} encontrada${props.length > 1 ? 's' : ''}`;
+        document.getElementById('grid').innerHTML = props.map(propCard).join('');
+      } catch (e) {
+        document.getElementById('loading').classList.add('hidden');
+        toast('Error al cargar propiedades: ' + e.message, 'error');
+      }
+    }
+
+    function limpiar() {
+      document.getElementById('loc').value = '';
+      document.getElementById('checkIn').value = '';
+      document.getElementById('checkOut').value = '';
+      buscar();
+    }
+
+    buscar();
+  </script>
+</body>
+</html>

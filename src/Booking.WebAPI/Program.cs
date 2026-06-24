@@ -88,11 +88,16 @@ builder.Services
 
 builder.Services.AddAuthorization();
 
+// CORS: permite cualquier origen para que el frontend pueda llamar la API
+builder.Services.AddCors(opts => opts.AddDefaultPolicy(p =>
+    p.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()));
+
 // ── Construcción y pipeline HTTP ──────────────────────────────────────────────
 var app = builder.Build();
 
 // Middleware global de manejo de excepciones (debe ir primero)
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseCors();
 
 // Swagger UI disponible en /swagger
 app.UseSwagger();

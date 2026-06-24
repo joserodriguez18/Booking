@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BookingApp — Mi cuenta</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <nav class="bg-white border-b border-gray-100 sticky top-0 z-40 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+      <a href="index.html" class="text-rose-500 font-bold text-xl">🏠 BookingApp</a>
+      <div id="nav-user" class="flex items-center gap-3"></div>
+    </div>
+  </nav>
+
+  <div class="max-w-3xl mx-auto px-4 py-8 space-y-6">
+
+    <!-- Header de usuario -->
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex items-center gap-4">
+      <div class="w-16 h-16 rounded-full bg-rose-100 flex items-center justify-center text-2xl font-bold text-rose-600"
+           id="avatar"></div>
+      <div>
+        <h1 id="user-name"  class="text-xl font-bold text-gray-800"></h1>
+        <p  id="user-email" class="text-sm text-gray-500"></p>
+        <div id="kyc-badge" class="mt-1.5"></div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="flex gap-1 bg-gray-100 rounded-2xl p-1">
+      <button onclick="tab('reservas')" id="tab-reservas"
+        class="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-white text-rose-500 shadow-sm transition-all">
+        📅 Mis reservas
+      </button>
+      <button onclick="tab('deseos')" id="tab-deseos"
+        class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-gray-500 hover:text-gray-700 transition-all">
+        ❤️ Favoritos
+      </button>
+      <button onclick="tab('kyc')" id="tab-kyc"
+        class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-gray-500 hover:text-gray-700 transition-all">
+        🪪 Verificación
+      </button>
+    </div>
+
+    <!-- Panel: Mis reservas -->
+    <div id="panel-reservas">
+      <div id="reservas-list" class="space-y-3">
+        <div class="bg-white rounded-2xl p-6 text-center text-gray-400 shadow-sm border border-gray-100 animate-pulse">
+          Cargando reservas...
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel: Favoritos -->
+    <div id="panel-deseos" class="hidden">
+      <div id="deseos-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
+    </div>
+
+    <!-- Panel: KYC -->
+    <div id="panel-kyc" class="hidden">
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <h2 class="font-bold text-gray-800 mb-1">Verificación de identidad</h2>
+        <p class="text-sm text-gray-500 mb-5">
+          Para confirmar reservas necesitas verificar tu identidad.
+          El documento es procesado por inteligencia artificial y eliminado de forma segura después.
+        </p>
+
+        <div class="flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 mb-6 text-sm">
+          <span>ℹ️</span>
+          <span>Estado actual: <span id="kyc-text" class="font-semibold text-blue-700"></span></span>
+        </div>
+
+        <form onsubmit="subirKyc(event)" class="space-y-5">
+          <div>
+            <label class="text-sm font-semibold text-gray-700 block mb-3">Tipo de documento</label>
+            <div class="grid grid-cols-2 gap-3">
+              <label class="relative flex items-center gap-3 p-4 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-rose-300 transition-colors has-[:checked]:border-rose-500 has-[:checked]:bg-rose-50">
+                <input type="radio" name="tipo" value="0" checked class="accent-rose-500">
+                <div>
+                  <div class="text-sm font-medium">🪪 Cédula</div>
+                  <div class="text-xs text-gray-400">Cédula de ciudadanía</div>
+                </div>
+              </label>
+              <label class="relative flex items-center gap-3 p-4 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-rose-300 transition-colors has-[:checked]:border-rose-500 has-[:checked]:bg-rose-50">
+                <input type="radio" name="tipo" value="1" class="accent-rose-500">
+                <div>
+                  <div class="text-sm font-medium">🛂 Pasaporte</div>
+                  <div class="text-xs text-gray-400">Pasaporte vigente</div>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <label class="text-sm font-semibold text-gray-700 block mb-3">Fotografía del documento</label>
+            <div id="drop-zone"
+              class="border-2 border-dashed border-gray-200 hover:border-rose-300 rounded-2xl p-8 text-center transition-colors cursor-pointer"
+              onclick="document.getElementById('kyc-file').click()">
+              <input id="kyc-file" type="file" accept="image/*" required class="hidden" onchange="previewKyc(this)">
+              <div id="kyc-ph">
+                <div class="text-5xl mb-3">🪪</div>
+                <p class="text-sm text-gray-500 font-medium">Haz click para seleccionar la imagen</p>
+                <p class="text-xs text-gray-400 mt-1">JPG, PNG — foto del documento (ambas caras si aplica)</p>
+              </div>
+              <div id="kyc-prev" class="hidden">
+                <img id="kyc-img" class="max-h-48 mx-auto rounded-xl mb-2">
+                <p class="text-xs text-gray-400">Click para cambiar</p>
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" id="btn-kyc"
+            class="w-full bg-rose-500 hover:bg-rose-600 text-white py-3 rounded-xl font-bold text-sm transition-colors">
+            🔍 Verificar documento con IA
+          </button>
+        </form>
+
+        <div id="kyc-result" class="hidden mt-5 p-4 rounded-xl border"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="js/api.js"></script>
+  <script>
+    if (!auth.isLogged()) window.location.href = 'auth.html?next=profile.html';
+    renderNav();
+
+    const u = auth.user();
+    document.getElementById('avatar').textContent     = u.name[0].toUpperCase();
+    document.getElementById('user-name').textContent  = u.name;
+    document.getElementById('user-email').textContent = u.email;
+    document.getElementById('kyc-badge').innerHTML    = kycBadge(u.kycStatus);
+    document.getElementById('kyc-text').textContent   =
+      ({ NotStarted: 'Sin verificar', Pending: 'En revisión', Verified: 'Verificado', Rejected: 'Rechazado' })[u.kycStatus] || u.kycStatus;
+
+    let wishLoaded = false;
+
+    function tab(t) {
+      ['reservas', 'deseos', 'kyc'].forEach(x => {
+        document.getElementById(`panel-${x}`).classList.toggle('hidden', x !== t);
+        document.getElementById(`tab-${x}`).className = x === t
+          ? 'flex-1 py-2.5 rounded-xl text-sm font-semibold bg-white text-rose-500 shadow-sm transition-all'
+          : 'flex-1 py-2.5 rounded-xl text-sm font-semibold text-gray-500 hover:text-gray-700 transition-all';
+      });
+      if (t === 'deseos' && !wishLoaded) cargarDeseos();
+    }
+
+    // ── Reservas ─────────────────────────────────────────────────────────────
+
+    function reservaCard(r) {
+      const noches = r.nights;
+      return `
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+          <div class="flex items-start justify-between gap-3">
+            <div class="flex-1 min-w-0">
+              <div class="flex flex-wrap items-center gap-2 mb-1">
+                <h3 class="font-semibold text-gray-800 text-sm truncate">${r.propertyName}</h3>
+                ${statusBadge(r.status)}
+              </div>
+              <p class="text-xs text-gray-400 mb-3">📍 ${r.propertyLocation}</p>
+              <div class="grid grid-cols-3 gap-2 text-xs">
+                <div class="bg-gray-50 rounded-lg p-2 text-center">
+                  <div class="text-gray-400 mb-0.5">Check-in</div>
+                  <div class="font-medium text-gray-700">${formatFecha(r.checkIn)}</div>
+                </div>
+                <div class="bg-gray-50 rounded-lg p-2 text-center">
+                  <div class="text-gray-400 mb-0.5">Check-out</div>
+                  <div class="font-medium text-gray-700">${formatFecha(r.checkOut)}</div>
+                </div>
+                <div class="bg-gray-50 rounded-lg p-2 text-center">
+                  <div class="text-gray-400 mb-0.5">Total</div>
+                  <div class="font-medium text-gray-700">${formatPrecio(r.totalPrice, r.currency)}</div>
+                </div>
+              </div>
+            </div>
+            <div class="flex flex-col gap-2 shrink-0">
+              ${r.status === 'Pending' ? `
+                <button onclick="confirmar('${r.id}', this)"
+                  class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs rounded-xl font-medium transition-colors">
+                  Confirmar
+                </button>
+                <button onclick="cancelar('${r.id}', this)"
+                  class="px-3 py-1.5 border border-red-200 text-red-500 hover:bg-red-50 text-xs rounded-xl transition-colors">
+                  Cancelar
+                </button>
+              ` : r.status === 'Confirmed' ? `
+                <button onclick="cancelar('${r.id}', this)"
+                  class="px-3 py-1.5 border border-red-200 text-red-500 hover:bg-red-50 text-xs rounded-xl transition-colors">
+                  Cancelar
+                </button>
+              ` : ''}
+            </div>
+          </div>
+        </div>`;
+    }
+
+    async function cargarReservas() {
+      try {
+        const lista = await api.getMyBookings();
+        document.getElementById('reservas-list').innerHTML = lista.length
+          ? lista.map(reservaCard).join('')
+          : `<div class="bg-white rounded-2xl border-2 border-dashed border-gray-200 p-12 text-center text-gray-400">
+               <div class="text-4xl mb-3">📭</div>
+               <p class="font-medium">No tienes reservas todavía</p>
+               <a href="index.html" class="text-rose-500 text-sm underline mt-2 inline-block">Explorar propiedades →</a>
+             </div>`;
+      } catch (e) { toast('Error: ' + e.message, 'error'); }
+    }
+
+    async function confirmar(id, btn) {
+      btn.textContent = '...'; btn.disabled = true;
+      try {
+        await api.confirmBooking(id);
+        toast('¡Reserva confirmada! ✅');
+        cargarReservas();
+      } catch (e) {
+        toast(e.message, 'error');
+        btn.textContent = 'Confirmar'; btn.disabled = false;
+      }
+    }
+
+    async function cancelar(id, btn) {
+      if (!confirm('¿Seguro que deseas cancelar esta reserva?')) return;
+      btn.textContent = '...'; btn.disabled = true;
+      try {
+        await api.cancelBooking(id);
+        toast('Reserva cancelada');
+        cargarReservas();
+      } catch (e) {
+        toast(e.message, 'error');
+        btn.textContent = 'Cancelar'; btn.disabled = false;
+      }
+    }
+
+    // ── Lista de deseos ───────────────────────────────────────────────────────
+
+    function deseoCard(p) {
+      const foto = p.photoUrls?.[0] || PLACEHOLDER;
+      return `
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <a href="property.html?id=${p.id}">
+            <img src="${foto}" class="w-full h-40 object-cover hover:opacity-90 transition-opacity"
+              onerror="this.src='${PLACEHOLDER}'">
+          </a>
+          <div class="p-4">
+            <a href="property.html?id=${p.id}" class="font-semibold text-gray-800 text-sm hover:text-rose-500 block mb-1 truncate">${p.name}</a>
+            <p class="text-gray-400 text-xs mb-3">📍 ${p.location}</p>
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-bold text-gray-900">${formatPrecio(p.pricePerNight, p.currency)}<span class="text-xs text-gray-400 font-normal"> / noche</span></span>
+              <button onclick="quitarDeseo('${p.id}', this)"
+                class="text-xs text-red-400 hover:text-red-600 border border-red-100 hover:border-red-300 rounded-lg px-2 py-1 transition-colors">
+                🗑 Quitar
+              </button>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    async function cargarDeseos() {
+      wishLoaded = true;
+      try {
+        const lista = await api.getWishlist();
+        document.getElementById('deseos-grid').innerHTML = lista.length
+          ? lista.map(deseoCard).join('')
+          : `<div class="col-span-2 bg-white rounded-2xl border-2 border-dashed border-gray-200 p-12 text-center text-gray-400">
+               <div class="text-4xl mb-3">🤍</div>
+               <p class="font-medium">Tu lista de favoritos está vacía</p>
+               <a href="index.html" class="text-rose-500 text-sm underline mt-2 inline-block">Explorar propiedades →</a>
+             </div>`;
+      } catch (e) { toast('Error: ' + e.message, 'error'); }
+    }
+
+    async function quitarDeseo(id, btn) {
+      btn.textContent = '...'; btn.disabled = true;
+      try {
+        await api.removeWishlist(id);
+        toast('Quitado de favoritos');
+        cargarDeseos();
+      } catch (e) { toast(e.message, 'error'); btn.textContent = '🗑 Quitar'; btn.disabled = false; }
+    }
+
+    // ── KYC ──────────────────────────────────────────────────────────────────
+
+    function previewKyc(input) {
+      if (!input.files[0]) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        document.getElementById('kyc-img').src = e.target.result;
+        document.getElementById('kyc-ph').classList.add('hidden');
+        document.getElementById('kyc-prev').classList.remove('hidden');
+      };
+      reader.readAsDataURL(input.files[0]);
+    }
+
+    async function subirKyc(e) {
+      e.preventDefault();
+      const file  = document.getElementById('kyc-file').files[0];
+      const tipo  = document.querySelector('input[name="tipo"]:checked').value;
+      const btn   = document.getElementById('btn-kyc');
+      const resEl = document.getElementById('kyc-result');
+
+      btn.textContent = '🔍 Analizando con IA...'; btn.disabled = true;
+      resEl.classList.add('hidden');
+
+      const fd = new FormData();
+      fd.append('archivo', file);
+      fd.append('tipoDocumento', tipo);
+      try {
+        const data = await api.uploadKyc(fd);
+        resEl.className = 'mt-5 p-4 rounded-xl border bg-emerald-50 border-emerald-200 text-sm';
+        resEl.innerHTML = `
+          <p class="font-semibold text-emerald-700 mb-2">✅ Documento verificado</p>
+          <dl class="space-y-1 text-xs text-gray-600">
+            ${data.nombre         ? `<div class="flex gap-2"><dt class="text-gray-400">Nombre:</dt><dd>${data.nombre}</dd></div>` : ''}
+            ${data.numeroDocumento? `<div class="flex gap-2"><dt class="text-gray-400">Documento:</dt><dd>${data.numeroDocumento}</dd></div>` : ''}
+            ${data.estadoKyc      ? `<div class="flex gap-2"><dt class="text-gray-400">Estado KYC:</dt><dd class="font-semibold">${data.estadoKyc}</dd></div>` : ''}
+          </dl>`;
+        resEl.classList.remove('hidden');
+        document.getElementById('kyc-badge').innerHTML = kycBadge('Verified');
+        document.getElementById('kyc-text').textContent = 'Verificado';
+        toast('Verificación KYC completada ✅');
+        btn.textContent = '✅ Verificado';
+      } catch (err) {
+        resEl.className = 'mt-5 p-4 rounded-xl border bg-red-50 border-red-200 text-sm text-red-700';
+        resEl.innerHTML = `❌ ${err.message}`;
+        resEl.classList.remove('hidden');
+        toast(err.message, 'error');
+        btn.textContent = '🔍 Verificar documento con IA'; btn.disabled = false;
+      }
+    }
+
+    cargarReservas();
+  </script>
+</body>
+</html>

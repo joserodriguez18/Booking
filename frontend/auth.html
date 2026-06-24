@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BookingApp — Acceso</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col">
+
+  <nav class="bg-white border-b border-gray-100 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+      <a href="index.html" class="text-rose-500 font-bold text-xl">🏠 BookingApp</a>
+      <a href="index.html" class="text-sm text-gray-500 hover:text-rose-500">← Volver al inicio</a>
+    </div>
+  </nav>
+
+  <div class="flex-1 flex items-center justify-center px-4 py-12">
+    <div class="bg-white rounded-2xl shadow-lg w-full max-w-md overflow-hidden">
+
+      <!-- Tabs -->
+      <div class="flex">
+        <button id="tab-login" onclick="setTab('login')"
+          class="flex-1 py-4 text-sm font-semibold text-rose-500 border-b-2 border-rose-500 bg-rose-50 transition-all">
+          Iniciar sesión
+        </button>
+        <button id="tab-register" onclick="setTab('register')"
+          class="flex-1 py-4 text-sm font-semibold text-gray-400 border-b-2 border-transparent hover:text-gray-600 transition-all">
+          Crear cuenta
+        </button>
+      </div>
+
+      <div class="p-8">
+        <!-- Login -->
+        <form id="form-login" onsubmit="doLogin(event)" class="space-y-4">
+          <div>
+            <label class="text-sm font-medium text-gray-700 block mb-1.5">Correo electrónico</label>
+            <input name="email" type="email" required autocomplete="email"
+              placeholder="tu@email.com"
+              class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all">
+          </div>
+          <div>
+            <label class="text-sm font-medium text-gray-700 block mb-1.5">Contraseña</label>
+            <input name="password" type="password" required autocomplete="current-password"
+              placeholder="••••••••"
+              class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all">
+          </div>
+          <button type="submit" id="btn-login"
+            class="w-full bg-rose-500 hover:bg-rose-600 text-white py-3 rounded-xl font-semibold text-sm transition-colors mt-2">
+            Iniciar sesión
+          </button>
+          <p class="text-center text-sm text-gray-400 pt-2">
+            ¿No tienes cuenta?
+            <button type="button" onclick="setTab('register')" class="text-rose-500 font-medium hover:underline">Regístrate</button>
+          </p>
+        </form>
+
+        <!-- Registro -->
+        <form id="form-register" class="hidden space-y-4" onsubmit="doRegister(event)">
+          <div>
+            <label class="text-sm font-medium text-gray-700 block mb-1.5">Nombre completo</label>
+            <input name="name" type="text" required autocomplete="name"
+              placeholder="Juan Pérez"
+              class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all">
+          </div>
+          <div>
+            <label class="text-sm font-medium text-gray-700 block mb-1.5">Correo electrónico</label>
+            <input name="email" type="email" required autocomplete="email"
+              placeholder="tu@email.com"
+              class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all">
+          </div>
+          <div>
+            <label class="text-sm font-medium text-gray-700 block mb-1.5">Contraseña</label>
+            <input name="password" type="password" required minlength="6"
+              placeholder="Mínimo 8 caracteres"
+              class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all">
+          </div>
+          <button type="submit" id="btn-register"
+            class="w-full bg-rose-500 hover:bg-rose-600 text-white py-3 rounded-xl font-semibold text-sm transition-colors mt-2">
+            Crear cuenta
+          </button>
+          <p class="text-center text-sm text-gray-400 pt-2">
+            ¿Ya tienes cuenta?
+            <button type="button" onclick="setTab('login')" class="text-rose-500 font-medium hover:underline">Inicia sesión</button>
+          </p>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script>
+    if (auth.isLogged()) window.location.href = 'index.html';
+
+    const qs = new URLSearchParams(location.search);
+    if (qs.get('r')) setTab('register');
+
+    function setTab(t) {
+      document.getElementById('form-login').classList.toggle('hidden', t !== 'login');
+      document.getElementById('form-register').classList.toggle('hidden', t !== 'register');
+
+      const styles = {
+        active:   'flex-1 py-4 text-sm font-semibold text-rose-500 border-b-2 border-rose-500 bg-rose-50 transition-all',
+        inactive: 'flex-1 py-4 text-sm font-semibold text-gray-400 border-b-2 border-transparent hover:text-gray-600 transition-all'
+      };
+      document.getElementById('tab-login').className    = styles[t === 'login'    ? 'active' : 'inactive'];
+      document.getElementById('tab-register').className = styles[t === 'register' ? 'active' : 'inactive'];
+    }
+
+    async function doLogin(e) {
+      e.preventDefault();
+      const f = e.target;
+      const btn = document.getElementById('btn-login');
+      btn.textContent = 'Entrando...'; btn.disabled = true;
+      try {
+        auth.save(await api.login(f.email.value, f.password.value));
+        toast('¡Bienvenido! 👋');
+        setTimeout(() => window.location.href = qs.get('next') || 'index.html', 600);
+      } catch (err) {
+        toast(err.message, 'error');
+        btn.textContent = 'Iniciar sesión'; btn.disabled = false;
+      }
+    }
+
+    async function doRegister(e) {
+      e.preventDefault();
+      const f = e.target;
+      const btn = document.getElementById('btn-register');
+      btn.textContent = 'Creando cuenta...'; btn.disabled = true;
+      try {
+        auth.save(await api.register(f.name.value, f.email.value, f.password.value));
+        toast('¡Cuenta creada! Bienvenido 🎉');
+        setTimeout(() => window.location.href = 'index.html', 600);
+      } catch (err) {
+        toast(err.message, 'error');
+        btn.textContent = 'Crear cuenta'; btn.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>
