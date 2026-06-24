@@ -1,4 +1,5 @@
 using Booking.Domain.Exceptions;
+using FluentValidation;
 using System.Net;
 using System.Text.Json;
 
@@ -36,26 +37,39 @@ public sealed class ExceptionHandlingMiddleware
         int statusCode;
         string mensaje;
 
+        object cuerpo;
+
         switch (ex)
         {
+            case ValidationException validacion:
+                statusCode = (int)HttpStatusCode.BadRequest;
+                var errores = validacion.Errors.Select(e => e.ErrorMessage).ToList();
+                mensaje = string.Join(" ", errores);
+                cuerpo  = new { error = mensaje, errores, codigo = statusCode, ruta = ctx.Request.Path.Value };
+                break;
+
             case BookingConflictException conflicto:
                 statusCode = (int)HttpStatusCode.Conflict;
                 mensaje    = conflicto.Message;
+                cuerpo     = new { error = mensaje, codigo = statusCode, ruta = ctx.Request.Path.Value };
                 break;
 
             case NotFoundException noEncontrado:
                 statusCode = (int)HttpStatusCode.NotFound;
                 mensaje    = noEncontrado.Message;
+                cuerpo     = new { error = mensaje, codigo = statusCode, ruta = ctx.Request.Path.Value };
                 break;
 
             case DomainException dominio:
                 statusCode = (int)HttpStatusCode.BadRequest;
                 mensaje    = dominio.Message;
+                cuerpo     = new { error = mensaje, codigo = statusCode, ruta = ctx.Request.Path.Value };
                 break;
 
             case UnauthorizedAccessException:
                 statusCode = (int)HttpStatusCode.Unauthorized;
                 mensaje    = "No está autorizado para realizar esta acción.";
+                cuerpo     = new { error = mensaje, codigo = statusCode, ruta = ctx.Request.Path.Value };
                 break;
 
             default:
@@ -63,19 +77,15 @@ public sealed class ExceptionHandlingMiddleware
                     ctx.Request.Method, ctx.Request.Path);
                 statusCode = (int)HttpStatusCode.InternalServerError;
                 mensaje    = "Ocurrió un error interno. Por favor intente de nuevo más tarde.";
+                cuerpo     = new { error = mensaje, codigo = statusCode, ruta = ctx.Request.Path.Value };
                 break;
         }
 
         ctx.Response.StatusCode  = statusCode;
         ctx.Response.ContentType = "application/json";
 
-        var respuesta = JsonSerializer.Serialize(new
-        {
-            error   = mensaje,
-            codigo  = statusCode,
-            ruta    = ctx.Request.Path.Value
-        }, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
-
-        await ctx.Response.WriteAsync(respuesta);
+        await ctx.Response.WriteAsync(
+            JsonSerializer.Serialize(cuerpo,
+                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
     }
 }

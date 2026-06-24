@@ -117,7 +117,17 @@ public class KycService : IKycService
         };
 
         var endpoint = string.Format(GeminiEndpointBase, _modelo, _apiKey);
-        var response = await _httpClient.PostAsJsonAsync(endpoint, requestBody, ct);
+
+        // Reintenta hasta 3 veces ante 429 (rate-limit), con espera exponencial
+        HttpResponseMessage response = null!;
+        const int maxIntentos = 3;
+        for (int intento = 1; intento <= maxIntentos; intento++)
+        {
+            response = await _httpClient.PostAsJsonAsync(endpoint, requestBody, ct);
+            if (response.StatusCode != System.Net.HttpStatusCode.TooManyRequests) break;
+            if (intento < maxIntentos)
+                await Task.Delay(TimeSpan.FromSeconds(intento * 3), ct);
+        }
         response.EnsureSuccessStatusCode();
 
         var geminiResponse = await response.Content.ReadFromJsonAsync<GeminiResponse>(cancellationToken: ct);

@@ -295,6 +295,17 @@
       reader.readAsDataURL(input.files[0]);
     }
 
+    async function actualizarKycEnLocalStorage(nuevoEstado) {
+      // Actualiza el estado KYC en localStorage y refresca el JWT para que el nuevo
+      // estado persista al recargar la página
+      const u = auth.user();
+      if (u) { u.kycStatus = nuevoEstado; localStorage.setItem('bk_user', JSON.stringify(u)); }
+      try {
+        const tokens = await api.refresh();
+        auth.save(tokens); // guarda el nuevo JWT con el claim kycStatus actualizado
+      } catch (_) {}      // si el refresh falla, el estado local ya quedó correcto
+    }
+
     async function subirKyc(e) {
       e.preventDefault();
       const file  = document.getElementById('kyc-file').files[0];
@@ -308,21 +319,37 @@
       const fd = new FormData();
       fd.append('archivo', file);
       fd.append('tipoDocumento', tipo);
+
       try {
         const data = await api.uploadKyc(fd);
-        resEl.className = 'mt-5 p-4 rounded-xl border bg-emerald-50 border-emerald-200 text-sm';
-        resEl.innerHTML = `
-          <p class="font-semibold text-emerald-700 mb-2">✅ Documento verificado</p>
-          <dl class="space-y-1 text-xs text-gray-600">
-            ${data.nombre         ? `<div class="flex gap-2"><dt class="text-gray-400">Nombre:</dt><dd>${data.nombre}</dd></div>` : ''}
-            ${data.numeroDocumento? `<div class="flex gap-2"><dt class="text-gray-400">Documento:</dt><dd>${data.numeroDocumento}</dd></div>` : ''}
-            ${data.estadoKyc      ? `<div class="flex gap-2"><dt class="text-gray-400">Estado KYC:</dt><dd class="font-semibold">${data.estadoKyc}</dd></div>` : ''}
-          </dl>`;
-        resEl.classList.remove('hidden');
-        document.getElementById('kyc-badge').innerHTML = kycBadge('Verified');
-        document.getElementById('kyc-text').textContent = 'Verificado';
-        toast('Verificación KYC completada ✅');
-        btn.textContent = '✅ Verificado';
+
+        if (data.success) {
+          resEl.className = 'mt-5 p-4 rounded-xl border bg-emerald-50 border-emerald-200 text-sm';
+          resEl.innerHTML = `
+            <p class="font-semibold text-emerald-700 mb-2">✅ Documento verificado correctamente</p>
+            <dl class="space-y-1 text-xs text-gray-600">
+              ${data.extractedNames   ? `<div class="flex gap-2"><dt class="text-gray-400">Nombre:</dt><dd>${data.extractedNames}</dd></div>`   : ''}
+              ${data.documentNumber   ? `<div class="flex gap-2"><dt class="text-gray-400">Documento:</dt><dd>${data.documentNumber}</dd></div>` : ''}
+              ${data.birthDate        ? `<div class="flex gap-2"><dt class="text-gray-400">Nacimiento:</dt><dd>${data.birthDate}</dd></div>`     : ''}
+            </dl>`;
+          resEl.classList.remove('hidden');
+          toast('¡Identidad verificada exitosamente! ✅');
+          btn.textContent = '✅ Verificado';
+          await actualizarKycEnLocalStorage('Verified');
+          document.getElementById('kyc-badge').innerHTML = kycBadge('Verified');
+          document.getElementById('kyc-text').textContent = 'Verificado';
+        } else {
+          // La API respondió 200 pero la verificación falló (ej: error Gemini, documento ilegible)
+          const msg = data.errorMessage || 'No fue posible verificar el documento.';
+          resEl.className = 'mt-5 p-4 rounded-xl border bg-red-50 border-red-200 text-sm text-red-700';
+          resEl.innerHTML = `<p class="font-semibold mb-1">❌ Verificación rechazada</p><p class="text-xs">${msg}</p>`;
+          resEl.classList.remove('hidden');
+          toast('Verificación rechazada. Intenta con una imagen más clara.', 'error');
+          btn.textContent = '🔍 Verificar documento con IA'; btn.disabled = false;
+          await actualizarKycEnLocalStorage('Rejected');
+          document.getElementById('kyc-badge').innerHTML = kycBadge('Rejected');
+          document.getElementById('kyc-text').textContent = 'Rechazado';
+        }
       } catch (err) {
         resEl.className = 'mt-5 p-4 rounded-xl border bg-red-50 border-red-200 text-sm text-red-700';
         resEl.innerHTML = `❌ ${err.message}`;

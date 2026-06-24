@@ -44,6 +44,7 @@ async function req(url, opts = {}) {
 const api = {
   login:          (email, pass)       => req('/auth/login',    { method: 'POST', body: JSON.stringify({ email, password: pass }) }),
   register:       (name, email, pass) => req('/auth/register', { method: 'POST', body: JSON.stringify({ name, email, password: pass }) }),
+  refresh:        ()                  => req('/auth/refresh',  { method: 'POST', body: JSON.stringify({ refreshToken: localStorage.getItem('bk_refresh') }) }),
 
   getProperties:  (params = {})       => req('/properties?' + new URLSearchParams(
                                            Object.fromEntries(Object.entries(params).filter(([, v]) => v)))),
