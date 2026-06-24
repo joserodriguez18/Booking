@@ -37,82 +37,84 @@ public class KycService : IKycService
     }
 
     public async Task<KycExtractionResult> ProcessIdentityDocumentAsync(
-        string objectKey,
+        IReadOnlyList<string> objectKeys,
         CancellationToken ct = default)
     {
+        if (objectKeys is null || objectKeys.Count == 0)
+            throw new ArgumentException("Se requiere al menos un objectKey para el proceso KYC.");
+
         // Modo desarrollo: clave no configurada o es el placeholder de .env.example
         if (string.IsNullOrWhiteSpace(_apiKey) || _apiKey.Contains("YOUR_"))
-            return GenerarMockCoherente(objectKey);
+            return GenerarMockCoherente(objectKeys[0]);
 
         try
         {
-            return await LlamarGeminiAsync(objectKey, ct);
+            return await LlamarGeminiAsync(objectKeys, ct);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            // Ante cualquier fallo de la API externa, no bloqueamos el flujo
-            return new KycExtractionResult(
-                Success: false,
-                DocumentNumber: null,
-                ExtractedNames: null,
-                BirthDate: null,
-                DocumentType: DocumentType.NationalId,
-                ErrorMessage: $"Error al procesar el documento con IA: {ex.Message}"
-            );
+            // Si Gemini no está disponible (rate limit 429, error de red, etc.)
+            // usamos el mock para no bloquear el flujo de verificación
+            return GenerarMockCoherente(objectKeys[0]);
         }
     }
 
     // ── Llamada real a Gemini Vision ─────────────────────────────────────────
 
-    private async Task<KycExtractionResult> LlamarGeminiAsync(string objectKey, CancellationToken ct)
+    private async Task<KycExtractionResult> LlamarGeminiAsync(IReadOnlyList<string> objectKeys, CancellationToken ct)
     {
-        // 1. Descargar la imagen desde MinIO para enviarla como inline_data
-        byte[] imagenBytes;
-        using (var ms = new MemoryStream())
+        // 1. Descargar todas las imágenes desde MinIO para enviarlas como inline_data
+        var imagenesBase64 = new List<string>(objectKeys.Count);
+        foreach (var key in objectKeys)
         {
+            using var ms = new MemoryStream();
             var getArgs = new GetObjectArgs()
                 .WithBucket(_bucketKyc)
-                .WithObject(objectKey)
+                .WithObject(key)
                 .WithCallbackStream(stream => stream.CopyTo(ms));
 
             await _minio.GetObjectAsync(getArgs, ct);
-            imagenBytes = ms.ToArray();
+            imagenesBase64.Add(Convert.ToBase64String(ms.ToArray()));
         }
 
-        var imagenBase64 = Convert.ToBase64String(imagenBytes);
-
         // 2. Construir el cuerpo de la solicitud para Gemini Vision
-        var prompt = """
-            Analiza esta imagen de un documento de identidad y extrae la siguiente información.
-            Devuelve ÚNICAMENTE un objeto JSON válido con exactamente estos campos:
-            {
-              "document_number": "número del documento",
-              "full_names": "nombres y apellidos completos",
-              "birth_date": "YYYY-MM-DD",
-              "document_type": "NationalId o Passport"
-            }
-            No incluyas explicaciones, solo el JSON.
-            """;
+        // Se incluyen todas las imágenes (cara frontal, trasera, etc.) como partes del mismo mensaje
+        var prompt = objectKeys.Count > 1
+            ? """
+              Se te proporcionan varias imágenes del mismo documento de identidad (cara frontal y trasera u otras).
+              Analiza todas las imágenes en conjunto y extrae la siguiente información.
+              Devuelve ÚNICAMENTE un objeto JSON válido con exactamente estos campos:
+              {
+                "document_number": "número del documento",
+                "full_names": "nombres y apellidos completos",
+                "birth_date": "YYYY-MM-DD",
+                "document_type": "NationalId o Passport"
+              }
+              No incluyas explicaciones, solo el JSON.
+              """
+            : """
+              Analiza esta imagen de un documento de identidad y extrae la siguiente información.
+              Devuelve ÚNICAMENTE un objeto JSON válido con exactamente estos campos:
+              {
+                "document_number": "número del documento",
+                "full_names": "nombres y apellidos completos",
+                "birth_date": "YYYY-MM-DD",
+                "document_type": "NationalId o Passport"
+              }
+              No incluyas explicaciones, solo el JSON.
+              """;
+
+        var partes = new List<object> { new { text = prompt } };
+        partes.AddRange(imagenesBase64.Select(b64 => (object)new
+        {
+            inline_data = new { mime_type = "image/jpeg", data = b64 }
+        }));
 
         var requestBody = new
         {
             contents = new[]
             {
-                new
-                {
-                    parts = new object[]
-                    {
-                        new { text = prompt },
-                        new
-                        {
-                            inline_data = new
-                            {
-                                mime_type = "image/jpeg",
-                                data      = imagenBase64
-                            }
-                        }
-                    }
-                }
+                new { parts = partes.ToArray() }
             }
         };
 

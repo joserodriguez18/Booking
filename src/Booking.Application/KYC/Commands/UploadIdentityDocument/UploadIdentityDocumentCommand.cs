@@ -8,12 +8,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Booking.Application.KYC.Commands.UploadIdentityDocument;
 
+public sealed record DocumentoArchivo(Stream Stream, string FileName, string ContentType);
+
 public sealed record UploadIdentityDocumentCommand(
-    Guid         UserId,
-    Stream       DocumentStream,
-    string       FileName,
-    string       ContentType,
-    DocumentType DocumentType
+    Guid                         UserId,
+    IReadOnlyList<DocumentoArchivo> Archivos,
+    DocumentType                 DocumentType
 ) : IRequest<KycExtractionResult>;
 
 // ── Handler ──────────────────────────────────────────────────────────────────
@@ -46,19 +46,24 @@ public sealed class UploadIdentityDocumentCommandHandler
         if (usuario.IsIdentityVerified)
             throw new DomainException("La identidad de este usuario ya fue verificada.");
 
-        // 1. Sube el documento a MinIO (almacenamiento seguro temporal)
-        var objectKey = await _storage.UploadFileAsync(
-            req.DocumentStream, req.FileName, req.ContentType, "kyc", ct);
+        // 1. Sube todos los archivos a MinIO (almacenamiento seguro temporal)
+        var objectKeys = new List<string>(req.Archivos.Count);
+        foreach (var archivo in req.Archivos)
+        {
+            var key = await _storage.UploadFileAsync(
+                archivo.Stream, archivo.FileName, archivo.ContentType, "kyc", ct);
+            objectKeys.Add(key);
+        }
 
-        // 2. Crea el registro del documento en estado pendiente
+        // 2. Crea el registro del documento usando la primera clave como referencia
         var documento = IdentityDocument.CreatePending(req.UserId, req.DocumentType);
-        documento.SetDocumentUrl(objectKey);
+        documento.SetDocumentUrl(objectKeys[0]);
         _ctx.DocumentosIdentidad.Add(documento);
 
         usuario.SetKycPending();
 
-        // 3. Procesa el documento con IA (Gemini)
-        var resultado = await _kyc.ProcessIdentityDocumentAsync(objectKey, ct);
+        // 3. Procesa todas las imágenes con IA en una sola llamada (cara frontal + trasera, etc.)
+        var resultado = await _kyc.ProcessIdentityDocumentAsync(objectKeys, ct);
 
         if (resultado.Success)
         {
@@ -66,7 +71,7 @@ public sealed class UploadIdentityDocumentCommandHandler
                 resultado.DocumentNumber!,
                 resultado.ExtractedNames!,
                 resultado.BirthDate!.Value);
-            usuario.ApproveKyc();
+            usuario.ApproveKyc(resultado.DocumentNumber, resultado.BirthDate);
 
             _ctx.Notificaciones.Add(Notification.Create(
                 usuario.Id,
@@ -85,8 +90,9 @@ public sealed class UploadIdentityDocumentCommandHandler
                 NotificationType.KycRechazado));
         }
 
-        // 4. Borrado seguro del documento post-verificación (requisito de privacidad)
-        await _storage.DeleteFileAsync(objectKey, ct);
+        // 4. Borrado seguro de todos los archivos post-verificación (requisito de privacidad)
+        foreach (var key in objectKeys)
+            await _storage.DeleteFileAsync(key, ct);
         documento.MarkDocumentAsDeleted();
 
         await _ctx.SaveChangesAsync(ct);

@@ -79,26 +79,38 @@ public sealed class PropertiesController : ControllerBase
         return NoContent();
     }
 
-    /// <summary>Sube una foto a la propiedad (máx. 10). Solo el propietario.</summary>
+    /// <summary>Sube una o varias fotos a la propiedad (máx. 10 en total). Solo el propietario.</summary>
     [Authorize]
     [HttpPost("{id:guid}/photos")]
     [Consumes("multipart/form-data")]
-    [ProducesResponseType(typeof(PhotoUploadResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(List<PhotoUploadResponse>), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UploadPhoto(Guid id, [FromForm] PropertyPhotoRequest req, CancellationToken ct)
     {
-        if (req.Foto is null || req.Foto.Length == 0)
-            return BadRequest(new { error = "Debes adjuntar un archivo de imagen." });
+        if (req.Fotos is null || req.Fotos.Count == 0)
+            return BadRequest(new { error = "Debes adjuntar al menos una imagen." });
 
-        var ownerId   = ObtenerUsuarioId();
-        await using var stream = req.Foto.OpenReadStream();
+        if (req.Fotos.Any(f => f.Length == 0))
+            return BadRequest(new { error = "Uno o más archivos están vacíos." });
 
-        var objectKey = await _mediator.Send(
-            new UploadPropertyPhotoCommand(id, ownerId, stream, req.Foto.FileName, req.Foto.ContentType), ct);
+        var ownerId = ObtenerUsuarioId();
+        var fotos   = req.Fotos
+            .Select(f => new FotoArchivo(f.OpenReadStream(), f.FileName, f.ContentType))
+            .ToList();
 
-        return StatusCode(StatusCodes.Status201Created,
-            new PhotoUploadResponse(objectKey, _storage.GetPublicUrl(objectKey)));
+        var objectKeys = await _mediator.Send(
+            new UploadPropertyPhotoCommand(id, ownerId, fotos), ct);
+
+        // Liberar streams
+        foreach (var foto in fotos)
+            await foto.Stream.DisposeAsync();
+
+        var respuestas = objectKeys
+            .Select(key => new PhotoUploadResponse(key, _storage.GetPublicUrl(key)))
+            .ToList();
+
+        return StatusCode(StatusCodes.Status201Created, respuestas);
     }
 
     /// <summary>
@@ -140,7 +152,7 @@ public sealed class PropertiesController : ControllerBase
 
 public sealed class PropertyPhotoRequest
 {
-    public IFormFile Foto { get; set; } = null!;
+    public List<IFormFile> Fotos { get; set; } = new();
 }
 
 public sealed record PhotoUploadResponse(string ObjectKey, string Url);

@@ -28,21 +28,8 @@
       </div>
     </div>
 
-    <!-- Tabs -->
-    <div class="flex gap-1 bg-gray-100 rounded-2xl p-1">
-      <button onclick="tab('reservas')" id="tab-reservas"
-        class="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-white text-rose-500 shadow-sm transition-all">
-        📅 Mis reservas
-      </button>
-      <button onclick="tab('deseos')" id="tab-deseos"
-        class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-gray-500 hover:text-gray-700 transition-all">
-        ❤️ Favoritos
-      </button>
-      <button onclick="tab('kyc')" id="tab-kyc"
-        class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-gray-500 hover:text-gray-700 transition-all">
-        🪪 Verificación
-      </button>
-    </div>
+    <!-- Tabs: Guest ve Reservas + Favoritos + KYC; Owner ve solo Reservas -->
+    <div id="tabs-container" class="flex gap-1 bg-gray-100 rounded-2xl p-1"></div>
 
     <!-- Panel: Mis reservas -->
     <div id="panel-reservas">
@@ -94,18 +81,21 @@
           </div>
 
           <div>
-            <label class="text-sm font-semibold text-gray-700 block mb-3">Fotografía del documento</label>
+            <label class="text-sm font-semibold text-gray-700 block mb-3">
+              Fotografías del documento
+              <span class="text-xs font-normal text-gray-400 ml-1">— cara frontal y trasera (o solo una si aplica)</span>
+            </label>
             <div id="drop-zone"
               class="border-2 border-dashed border-gray-200 hover:border-rose-300 rounded-2xl p-8 text-center transition-colors cursor-pointer"
               onclick="document.getElementById('kyc-file').click()">
-              <input id="kyc-file" type="file" accept="image/*" required class="hidden" onchange="previewKyc(this)">
+              <input id="kyc-file" type="file" accept="image/*" multiple class="hidden" onchange="previewKyc(this)">
               <div id="kyc-ph">
                 <div class="text-5xl mb-3">🪪</div>
-                <p class="text-sm text-gray-500 font-medium">Haz click para seleccionar la imagen</p>
-                <p class="text-xs text-gray-400 mt-1">JPG, PNG — foto del documento (ambas caras si aplica)</p>
+                <p class="text-sm text-gray-500 font-medium">Haz click para seleccionar las imágenes</p>
+                <p class="text-xs text-gray-400 mt-1">JPG, PNG — puedes subir hasta 3 imágenes a la vez</p>
               </div>
               <div id="kyc-prev" class="hidden">
-                <img id="kyc-img" class="max-h-48 mx-auto rounded-xl mb-2">
+                <div id="kyc-grid" class="flex flex-wrap justify-center gap-2 mb-2"></div>
                 <p class="text-xs text-gray-400">Click para cambiar</p>
               </div>
             </div>
@@ -125,23 +115,56 @@
 
   <script src="js/api.js"></script>
   <script>
-    if (!auth.isLogged()) window.location.href = 'auth.html?next=profile.html';
+    if (!auth.isLogged()) { window.location.href = 'auth.html?next=profile.html'; }
     renderNav();
 
-    const u = auth.user();
+    const u       = auth.user();
+    const esOwner = u.role === 'Owner';
+
     document.getElementById('avatar').textContent     = u.name[0].toUpperCase();
     document.getElementById('user-name').textContent  = u.name;
     document.getElementById('user-email').textContent = u.email;
-    document.getElementById('kyc-badge').innerHTML    = kycBadge(u.kycStatus);
-    document.getElementById('kyc-text').textContent   =
-      ({ NotStarted: 'Sin verificar', Pending: 'En revisión', Verified: 'Verificado', Rejected: 'Rechazado' })[u.kycStatus] || u.kycStatus;
+
+    // Badge de rol en el header
+    document.getElementById('kyc-badge').innerHTML = esOwner
+      ? '<span class="px-3 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700">Propietario</span>'
+      : kycBadge(u.kycStatus);
+
+    // Tabs dinámicos según rol
+    const tabsDef = esOwner
+      ? [{ id: 'reservas', label: '📅 Mis reservas' }]
+      : [
+          { id: 'reservas', label: '📅 Mis reservas' },
+          { id: 'deseos',   label: '❤️ Favoritos'   },
+          { id: 'kyc',      label: '🪪 Verificación' },
+        ];
+
+    document.getElementById('tabs-container').innerHTML = tabsDef
+      .map((t, i) => `<button onclick="tab('${t.id}')" id="tab-${t.id}"
+        class="flex-1 py-2.5 rounded-xl text-sm font-semibold ${i === 0 ? 'bg-white text-rose-500 shadow-sm' : 'text-gray-500 hover:text-gray-700'} transition-all">
+        ${t.label}</button>`).join('');
+
+    // Ocultar paneles que el rol no usa
+    if (esOwner) {
+      document.getElementById('panel-deseos')?.classList.add('hidden');
+      document.getElementById('panel-kyc')?.classList.add('hidden');
+    }
+
+    // Texto de estado KYC (solo para Guest)
+    if (!esOwner) {
+      const kycTextEl = document.getElementById('kyc-text');
+      if (kycTextEl) kycTextEl.textContent =
+        ({ NotStarted: 'Sin verificar', Pending: 'En revisión', Verified: 'Verificado', Rejected: 'Rechazado' })[u.kycStatus] || u.kycStatus;
+    }
 
     let wishLoaded = false;
 
     function tab(t) {
-      ['reservas', 'deseos', 'kyc'].forEach(x => {
-        document.getElementById(`panel-${x}`).classList.toggle('hidden', x !== t);
-        document.getElementById(`tab-${x}`).className = x === t
+      const todos = ['reservas', 'deseos', 'kyc'];
+      todos.forEach(x => {
+        document.getElementById(`panel-${x}`)?.classList.toggle('hidden', x !== t);
+        const btn = document.getElementById(`tab-${x}`);
+        if (btn) btn.className = x === t
           ? 'flex-1 py-2.5 rounded-xl text-sm font-semibold bg-white text-rose-500 shadow-sm transition-all'
           : 'flex-1 py-2.5 rounded-xl text-sm font-semibold text-gray-500 hover:text-gray-700 transition-all';
       });
@@ -285,14 +308,21 @@
     // ── KYC ──────────────────────────────────────────────────────────────────
 
     function previewKyc(input) {
-      if (!input.files[0]) return;
-      const reader = new FileReader();
-      reader.onload = e => {
-        document.getElementById('kyc-img').src = e.target.result;
-        document.getElementById('kyc-ph').classList.add('hidden');
-        document.getElementById('kyc-prev').classList.remove('hidden');
-      };
-      reader.readAsDataURL(input.files[0]);
+      if (!input.files.length) return;
+      const grid = document.getElementById('kyc-grid');
+      grid.innerHTML = '';
+      Array.from(input.files).slice(0, 3).forEach(file => {
+        const reader = new FileReader();
+        reader.onload = e => {
+          const img = document.createElement('img');
+          img.src = e.target.result;
+          img.className = 'h-32 rounded-xl object-cover border border-gray-200';
+          grid.appendChild(img);
+        };
+        reader.readAsDataURL(file);
+      });
+      document.getElementById('kyc-ph').classList.add('hidden');
+      document.getElementById('kyc-prev').classList.remove('hidden');
     }
 
     async function actualizarKycEnLocalStorage(nuevoEstado) {
@@ -308,16 +338,18 @@
 
     async function subirKyc(e) {
       e.preventDefault();
-      const file  = document.getElementById('kyc-file').files[0];
+      const files = document.getElementById('kyc-file').files;
       const tipo  = document.querySelector('input[name="tipo"]:checked').value;
       const btn   = document.getElementById('btn-kyc');
       const resEl = document.getElementById('kyc-result');
+
+      if (!files.length) { toast('Selecciona al menos una imagen del documento', 'error'); return; }
 
       btn.textContent = '🔍 Analizando con IA...'; btn.disabled = true;
       resEl.classList.add('hidden');
 
       const fd = new FormData();
-      fd.append('archivo', file);
+      Array.from(files).forEach(f => fd.append('archivos', f));
       fd.append('tipoDocumento', tipo);
 
       try {

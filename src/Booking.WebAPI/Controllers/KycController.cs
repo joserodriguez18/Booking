@@ -18,8 +18,9 @@ public sealed class KycController : ControllerBase
     public KycController(IMediator mediator) => _mediator = mediator;
 
     /// <summary>
-    /// Sube un documento de identidad para verificación KYC.
-    /// El documento se procesa con IA y se elimina de MinIO después de la verificación.
+    /// Sube uno o más archivos del documento de identidad para verificación KYC.
+    /// Permite subir cara frontal y trasera del documento en una sola solicitud.
+    /// Los archivos se procesan con IA en conjunto y se eliminan de MinIO tras la verificación.
     /// </summary>
     [HttpPost("upload")]
     [Consumes("multipart/form-data")]
@@ -27,14 +28,27 @@ public sealed class KycController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Upload([FromForm] KycUploadRequest req, CancellationToken ct)
     {
-        if (req.Archivo is null || req.Archivo.Length == 0)
-            return BadRequest(new { error = "Debes adjuntar un archivo de imagen del documento." });
+        if (req.Archivos is null || req.Archivos.Count == 0)
+            return BadRequest(new { error = "Debes adjuntar al menos una imagen del documento." });
+
+        if (req.Archivos.Count > 3)
+            return BadRequest(new { error = "Máximo 3 imágenes por verificación." });
+
+        if (req.Archivos.Any(a => a.Length == 0))
+            return BadRequest(new { error = "Uno o más archivos están vacíos." });
 
         var userId = ObtenerUsuarioId();
 
-        await using var stream = req.Archivo.OpenReadStream();
+        var archivos = req.Archivos
+            .Select(a => new DocumentoArchivo(a.OpenReadStream(), a.FileName, a.ContentType))
+            .ToList();
+
         var resultado = await _mediator.Send(
-            new UploadIdentityDocumentCommand(userId, stream, req.Archivo.FileName, req.Archivo.ContentType, req.TipoDocumento), ct);
+            new UploadIdentityDocumentCommand(userId, archivos, req.TipoDocumento), ct);
+
+        // Liberar los streams
+        foreach (var archivo in archivos)
+            await archivo.Stream.DisposeAsync();
 
         return Ok(resultado);
     }
@@ -46,6 +60,6 @@ public sealed class KycController : ControllerBase
 
 public sealed class KycUploadRequest
 {
-    public IFormFile     Archivo       { get; set; } = null!;
-    public DocumentType  TipoDocumento { get; set; }
+    public List<IFormFile> Archivos      { get; set; } = new();
+    public DocumentType    TipoDocumento { get; set; }
 }

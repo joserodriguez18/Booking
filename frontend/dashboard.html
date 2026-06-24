@@ -102,26 +102,26 @@
     </div>
   </div>
 
-  <!-- Modal: subir foto -->
+  <!-- Modal: subir fotos -->
   <div id="modal-foto" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center px-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md">
       <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-        <h3 class="font-bold text-gray-800">📸 Subir foto</h3>
+        <h3 class="font-bold text-gray-800">📸 Subir fotos</h3>
         <button onclick="cerrarModal('modal-foto')" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
       </div>
       <div class="p-6">
         <input type="hidden" id="foto-prop-id">
         <div class="border-2 border-dashed border-gray-200 hover:border-rose-300 rounded-2xl p-8 text-center mb-4 transition-colors cursor-pointer"
           onclick="document.getElementById('input-foto').click()">
-          <input id="input-foto" type="file" accept="image/*" class="hidden" onchange="previewFoto(this)">
+          <input id="input-foto" type="file" accept="image/*" multiple class="hidden" onchange="previewFotos(this)">
           <div id="ph-foto">
             <div class="text-4xl mb-2">📷</div>
-            <p class="text-sm text-gray-500">Haz click para seleccionar una imagen</p>
-            <p class="text-xs text-gray-400 mt-1">JPG, PNG, WebP — máx 10 MB</p>
+            <p class="text-sm text-gray-500">Haz click para seleccionar una o varias imágenes</p>
+            <p class="text-xs text-gray-400 mt-1">JPG, PNG, WebP — puedes seleccionar hasta 10 a la vez</p>
           </div>
           <div id="prev-foto" class="hidden">
-            <img id="prev-img" class="max-h-48 mx-auto rounded-xl object-cover">
-            <p class="text-xs text-gray-400 mt-2">Click para cambiar la imagen</p>
+            <div id="prev-grid" class="grid grid-cols-3 gap-2 mb-2"></div>
+            <p class="text-xs text-gray-400">Click para cambiar la selección</p>
           </div>
         </div>
         <div class="flex gap-3">
@@ -129,7 +129,7 @@
             class="flex-1 border border-gray-200 rounded-xl py-2.5 text-sm text-gray-600 hover:bg-gray-50">Cancelar</button>
           <button onclick="subirFoto()" id="btn-foto"
             class="flex-1 bg-rose-500 hover:bg-rose-600 text-white rounded-xl py-2.5 text-sm font-semibold transition-colors">
-            Subir foto
+            Subir fotos
           </button>
         </div>
       </div>
@@ -138,7 +138,8 @@
 
   <script src="js/api.js"></script>
   <script>
-    if (!auth.isLogged()) window.location.href = 'auth.html?next=dashboard.html';
+    if (!auth.isLogged()) { window.location.href = 'auth.html?next=dashboard.html'; }
+    else if (auth.user()?.role !== 'Owner') { window.location.href = 'index.html'; }
     renderNav();
 
     function statCard(icon, label, val) {
@@ -237,35 +238,48 @@
       document.getElementById('modal-foto').classList.remove('hidden');
     }
 
-    function previewFoto(input) {
-      if (!input.files[0]) return;
-      const reader = new FileReader();
-      reader.onload = e => {
-        document.getElementById('prev-img').src = e.target.result;
-        document.getElementById('ph-foto').classList.add('hidden');
-        document.getElementById('prev-foto').classList.remove('hidden');
-      };
-      reader.readAsDataURL(input.files[0]);
+    function previewFotos(input) {
+      if (!input.files.length) return;
+      const grid = document.getElementById('prev-grid');
+      grid.innerHTML = '';
+      Array.from(input.files).slice(0, 9).forEach((file, i) => {
+        const reader = new FileReader();
+        reader.onload = e => {
+          const img = document.createElement('img');
+          img.src = e.target.result;
+          img.className = 'w-full h-20 object-cover rounded-lg';
+          grid.appendChild(img);
+        };
+        reader.readAsDataURL(file);
+      });
+      if (input.files.length > 9) {
+        const more = document.createElement('div');
+        more.className = 'w-full h-20 bg-gray-100 rounded-lg flex items-center justify-center text-sm text-gray-500 font-semibold';
+        more.textContent = `+${input.files.length - 9} más`;
+        grid.appendChild(more);
+      }
+      document.getElementById('ph-foto').classList.add('hidden');
+      document.getElementById('prev-foto').classList.remove('hidden');
     }
 
     async function subirFoto() {
       const propId = document.getElementById('foto-prop-id').value;
-      const file   = document.getElementById('input-foto').files[0];
-      if (!file) { toast('Selecciona una imagen primero', 'error'); return; }
+      const files  = document.getElementById('input-foto').files;
+      if (!files.length) { toast('Selecciona al menos una imagen', 'error'); return; }
 
       const btn = document.getElementById('btn-foto');
       btn.textContent = 'Subiendo...'; btn.disabled = true;
 
       const fd = new FormData();
-      fd.append('foto', file);
+      Array.from(files).forEach(f => fd.append('fotos', f));
       try {
         await api.uploadPhoto(propId, fd);
-        toast('Foto subida exitosamente ✅');
+        toast(`${files.length} foto${files.length > 1 ? 's' : ''} subida${files.length > 1 ? 's' : ''} ✅`);
         cerrarModal('modal-foto');
         cargar();
       } catch (e) {
-        toast(e.message || 'Error al subir la foto', 'error');
-        btn.textContent = 'Subir foto'; btn.disabled = false;
+        toast(e.message || 'Error al subir las fotos', 'error');
+        btn.textContent = 'Subir fotos'; btn.disabled = false;
       }
     }
 
