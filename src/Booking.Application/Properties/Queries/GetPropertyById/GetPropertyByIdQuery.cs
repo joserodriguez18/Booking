@@ -13,20 +13,31 @@ public sealed record GetPropertyByIdQuery(Guid PropertyId) : IRequest<PropertyDt
 public sealed class GetPropertyByIdQueryHandler : IRequestHandler<GetPropertyByIdQuery, PropertyDto>
 {
     private readonly IApplicationDbContext _ctx;
+    private readonly IStorageService       _storage;
 
-    public GetPropertyByIdQueryHandler(IApplicationDbContext ctx) => _ctx = ctx;
+    public GetPropertyByIdQueryHandler(IApplicationDbContext ctx, IStorageService storage)
+    {
+        _ctx     = ctx;
+        _storage = storage;
+    }
 
     public async Task<PropertyDto> Handle(GetPropertyByIdQuery req, CancellationToken ct)
     {
-        var propiedad = await _ctx.Propiedades
+        var p = await _ctx.Propiedades
             .Where(p => p.Id == req.PropertyId && p.IsActive)
-            .Select(p => new PropertyDto(
+            .Select(p => new {
                 p.Id, p.Name, p.Description, p.Location,
-                p.PricePerNight.Amount, p.PricePerNight.Currency,
-                p.OwnerId, p.IsActive, p.CreatedAt))
+                Monto  = p.PricePerNight.Amount,
+                Moneda = p.PricePerNight.Currency,
+                p.OwnerId, p.IsActive, p.CreatedAt, p.PhotoUrls
+            })
             .FirstOrDefaultAsync(ct)
             ?? throw new NotFoundException("Propiedad", req.PropertyId);
 
-        return propiedad;
+        return new PropertyDto(
+            p.Id, p.Name, p.Description, p.Location,
+            p.Monto, p.Moneda, p.OwnerId, p.IsActive, p.CreatedAt,
+            p.PhotoUrls.Select(_storage.GetPublicUrl).ToList()
+        );
     }
 }

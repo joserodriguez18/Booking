@@ -22,8 +22,13 @@ public sealed record GetPropertiesQuery(
 public sealed class GetPropertiesQueryHandler : IRequestHandler<GetPropertiesQuery, List<PropertyDto>>
 {
     private readonly IApplicationDbContext _ctx;
+    private readonly IStorageService       _storage;
 
-    public GetPropertiesQueryHandler(IApplicationDbContext ctx) => _ctx = ctx;
+    public GetPropertiesQueryHandler(IApplicationDbContext ctx, IStorageService storage)
+    {
+        _ctx     = ctx;
+        _storage = storage;
+    }
 
     public async Task<List<PropertyDto>> Handle(GetPropertiesQuery req, CancellationToken ct)
     {
@@ -36,9 +41,9 @@ public sealed class GetPropertiesQueryHandler : IRequestHandler<GetPropertiesQue
         // Filtro de disponibilidad: excluye propiedades con reservas confirmadas que se solapan
         if (req.CheckIn.HasValue && req.CheckOut.HasValue)
         {
-            var rango      = BookingDateRange.Create(req.CheckIn.Value, req.CheckOut.Value);
-            var checkIn    = rango.CheckIn;
-            var checkOut   = rango.CheckOut;
+            var rango    = BookingDateRange.Create(req.CheckIn.Value, req.CheckOut.Value);
+            var checkIn  = rango.CheckIn;
+            var checkOut = rango.CheckOut;
 
             query = query.Where(p => !_ctx.Reservas.Any(r =>
                 r.PropertyId == p.Id &&
@@ -47,11 +52,20 @@ public sealed class GetPropertiesQueryHandler : IRequestHandler<GetPropertiesQue
                 r.DateRange.CheckOut > checkIn));
         }
 
-        return await query
-            .Select(p => new PropertyDto(
+        // Se materializa primero para poder convertir objectKeys a URLs públicas en memoria
+        var propiedades = await query
+            .Select(p => new {
                 p.Id, p.Name, p.Description, p.Location,
-                p.PricePerNight.Amount, p.PricePerNight.Currency,
-                p.OwnerId, p.IsActive, p.CreatedAt))
+                Monto  = p.PricePerNight.Amount,
+                Moneda = p.PricePerNight.Currency,
+                p.OwnerId, p.IsActive, p.CreatedAt, p.PhotoUrls
+            })
             .ToListAsync(ct);
+
+        return propiedades.Select(p => new PropertyDto(
+            p.Id, p.Name, p.Description, p.Location,
+            p.Monto, p.Moneda, p.OwnerId, p.IsActive, p.CreatedAt,
+            p.PhotoUrls.Select(_storage.GetPublicUrl).ToList()
+        )).ToList();
     }
 }

@@ -48,7 +48,7 @@ public sealed class UploadIdentityDocumentCommandHandler
 
         // 1. Sube el documento a MinIO (almacenamiento seguro temporal)
         var objectKey = await _storage.UploadFileAsync(
-            req.DocumentStream, req.FileName, req.ContentType, ct);
+            req.DocumentStream, req.FileName, req.ContentType, "kyc", ct);
 
         // 2. Crea el registro del documento en estado pendiente
         var documento = IdentityDocument.CreatePending(req.UserId, req.DocumentType);

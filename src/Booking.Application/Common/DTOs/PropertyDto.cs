@@ -9,5 +9,6 @@ public record PropertyDto(
     string          Currency,
     Guid            OwnerId,
     bool            IsActive,
-    DateTimeOffset  CreatedAt
+    DateTimeOffset  CreatedAt,
+    List<string>    PhotoUrls
 );

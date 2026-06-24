@@ -11,6 +11,7 @@ public sealed class Property : BaseEntity
     public Money PricePerNight { get; private set; } = Money.Of(0);
     public Guid OwnerId { get; private set; }
     public bool IsActive { get; private set; } = true;
+    public List<string> PhotoUrls { get; private set; } = new();
 
     private Property() { }
 
@@ -44,4 +45,21 @@ public sealed class Property : BaseEntity
 
     public void Deactivate() { IsActive = false; SetUpdatedAt(); }
     public void Activate()   { IsActive = true;  SetUpdatedAt(); }
+
+    public void AddPhoto(string objectKey)
+    {
+        if (string.IsNullOrWhiteSpace(objectKey))
+            throw new DomainException("La ruta de la foto no puede estar vacía.");
+        if (PhotoUrls.Count >= 10)
+            throw new DomainException("Una propiedad no puede tener más de 10 fotos.");
+        PhotoUrls.Add(objectKey);
+        SetUpdatedAt();
+    }
+
+    public void RemovePhoto(string objectKey)
+    {
+        if (!PhotoUrls.Remove(objectKey))
+            throw new DomainException("La foto especificada no existe en esta propiedad.");
+        SetUpdatedAt();
+    }
 }

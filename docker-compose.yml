@@ -20,6 +20,8 @@ services:
       - MinIO__AccessKey=${MINIO_ACCESS_KEY}
       - MinIO__SecretKey=${MINIO_SECRET_KEY}
       - MinIO__BucketKyc=${MINIO_BUCKET_KYC}
+      - MINIO_BUCKET_PROPERTIES=${MINIO_BUCKET_PROPERTIES}
+      - MINIO_PUBLIC_ENDPOINT=${MINIO_PUBLIC_ENDPOINT}
       - Gemini__ApiKey=${GEMINI_API_KEY}
       - Gemini__Model=${GEMINI_MODEL}
       - Smtp__Host=${SMTP_HOST}
@@ -62,8 +64,8 @@ services:
       - "9000:9000"
       - "9001:9001"
     environment:
-      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
-      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+      - MINIO_ROOT_USER=${MINIO_ACCESS_KEY}
+      - MINIO_ROOT_PASSWORD=${MINIO_SECRET_KEY}
     volumes:
       - minio-data:/data
     healthcheck:

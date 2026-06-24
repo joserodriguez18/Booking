@@ -35,6 +35,13 @@ public class PropertyConfiguration : IEntityTypeConfiguration<Property>
             .HasColumnName("activo")
             .HasDefaultValue(true);
 
+        // Array nativo de PostgreSQL para las rutas de fotos en MinIO
+        builder.Property(p => p.PhotoUrls)
+            .HasColumnName("foto_urls")
+            .HasColumnType("text[]")
+            .HasDefaultValueSql("'{}'::text[]")
+            .IsRequired();
+
         builder.Property(p => p.CreatedAt)
             .HasColumnName("creado_en")
             .HasColumnType("timestamp with time zone");
