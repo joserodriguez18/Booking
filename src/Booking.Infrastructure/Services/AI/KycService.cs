@@ -18,21 +18,21 @@ namespace Booking.Infrastructure.Services.AI;
 /// </summary>
 public class KycService : IKycService
 {
-    private readonly string      _apiKey;
-    private readonly string      _modelo;
+    private readonly string _apiKey;
+    private readonly string _modelo;
     private readonly IMinioClient _minio;
-    private readonly string      _bucketKyc;
-    private readonly HttpClient  _httpClient;
+    private readonly string _bucketKyc;
+    private readonly HttpClient _httpClient;
 
     private const string GeminiEndpointBase =
         "https://generativelanguage.googleapis.com/v1beta/models/{0}:generateContent?key={1}";
 
     public KycService(IMinioClient minio, IHttpClientFactory httpFactory, IConfiguration config)
     {
-        _minio      = minio;
-        _bucketKyc  = config["MINIO_BUCKET_KYC"] ?? "kyc-documents";
-        _apiKey     = config["GEMINI_API_KEY"]    ?? string.Empty;
-        _modelo     = config["GEMINI_MODEL"]      ?? "gemini-2.0-flash";
+        _minio = minio;
+        _bucketKyc = config["MINIO_BUCKET_KYC"] ?? "kyc-documents";
+        _apiKey = config["GEMINI_API_KEY"] ?? string.Empty;
+        _modelo = config["GEMINI_MODEL"] ?? "gemini-2.0-flash";
         _httpClient = httpFactory.CreateClient("GeminiClient");
     }
 
@@ -51,11 +51,15 @@ public class KycService : IKycService
         {
             return await LlamarGeminiAsync(objectKeys, ct);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Si Gemini no está disponible (rate limit 429, error de red, etc.)
-            // usamos el mock para no bloquear el flujo de verificación
-            return GenerarMockCoherente(objectKeys[0]);
+            return new KycExtractionResult(
+                Success: false,
+                DocumentNumber: null,
+                ExtractedNames: null,
+                BirthDate: null,
+                DocumentType: DocumentType.NationalId,
+                ErrorMessage: $"No fue posible procesar el documento: {ex.Message}");
         }
     }
 
@@ -79,30 +83,22 @@ public class KycService : IKycService
 
         // 2. Construir el cuerpo de la solicitud para Gemini Vision
         // Se incluyen todas las imágenes (cara frontal, trasera, etc.) como partes del mismo mensaje
-        var prompt = objectKeys.Count > 1
-            ? """
-              Se te proporcionan varias imágenes del mismo documento de identidad (cara frontal y trasera u otras).
-              Analiza todas las imágenes en conjunto y extrae la siguiente información.
-              Devuelve ÚNICAMENTE un objeto JSON válido con exactamente estos campos:
-              {
-                "document_number": "número del documento",
-                "full_names": "nombres y apellidos completos",
-                "birth_date": "YYYY-MM-DD",
-                "document_type": "NationalId o Passport"
-              }
-              No incluyas explicaciones, solo el JSON.
-              """
-            : """
-              Analiza esta imagen de un documento de identidad y extrae la siguiente información.
-              Devuelve ÚNICAMENTE un objeto JSON válido con exactamente estos campos:
-              {
-                "document_number": "número del documento",
-                "full_names": "nombres y apellidos completos",
-                "birth_date": "YYYY-MM-DD",
-                "document_type": "NationalId o Passport"
-              }
-              No incluyas explicaciones, solo el JSON.
-              """;
+        var intro = objectKeys.Count > 1
+            ? "Se te proporcionan varias imágenes del mismo documento de identidad (cara frontal y trasera u otras). Analiza todas las imágenes en conjunto."
+            : "Analiza esta imagen de un documento de identidad.";
+
+        var prompt = intro + "\n" +
+            "Extrae ÚNICAMENTE los datos que estén claramente visibles e impresos en el documento.\n" +
+            "NO inventes, NO supongas, NO rellenes datos que no puedas leer con certeza.\n" +
+            "Si el documento no es legible, no es un documento de identidad válido, o algún campo no puede leerse con claridad,\n" +
+            "devuelve: {\"error\": \"descripción del problema\"}.\n" +
+            "Si sí puedes leer todos los campos, devuelve ÚNICAMENTE este JSON (sin explicaciones, sin bloques de código):\n" +
+            "{\n" +
+            "  \"document_number\": \"número exacto del documento tal como aparece\",\n" +
+            "  \"full_names\": \"nombres y apellidos completos tal como aparecen\",\n" +
+            "  \"birth_date\": \"YYYY-MM-DD\",\n" +
+            "  \"document_type\": \"NationalId o Passport\"\n" +
+            "}";
 
         var partes = new List<object> { new { text = prompt } };
         partes.AddRange(imagenesBase64.Select(b64 => (object)new
@@ -130,12 +126,13 @@ public class KycService : IKycService
             if (intento < maxIntentos)
                 await Task.Delay(TimeSpan.FromSeconds(intento * 3), ct);
         }
+
         response.EnsureSuccessStatusCode();
 
         var geminiResponse = await response.Content.ReadFromJsonAsync<GeminiResponse>(cancellationToken: ct);
-        var jsonTexto      = geminiResponse?.Candidates?.FirstOrDefault()
-                                            ?.Content?.Parts?.FirstOrDefault()
-                                            ?.Text ?? "{}";
+        var jsonTexto = geminiResponse?.Candidates?.FirstOrDefault()
+            ?.Content?.Parts?.FirstOrDefault()
+            ?.Text ?? "{}";
 
         // Limpiar posibles bloques de código markdown que Gemini puede añadir
         jsonTexto = jsonTexto
@@ -145,23 +142,46 @@ public class KycService : IKycService
 
         // 3. Parsear la respuesta de Gemini
         using var doc = JsonDocument.Parse(jsonTexto);
-        var root      = doc.RootElement;
+        var root = doc.RootElement;
 
-        var tipoStr  = root.TryGetProperty("document_type", out var tipoEl) ? tipoEl.GetString() : "NationalId";
-        var tipo     = tipoStr == "Passport" ? DocumentType.Passport : DocumentType.NationalId;
+        // Gemini indica que no pudo leer el documento
+        if (root.TryGetProperty("error", out var errorEl))
+            return new KycExtractionResult(
+                Success: false,
+                DocumentNumber: null,
+                ExtractedNames: null,
+                BirthDate: null,
+                DocumentType: DocumentType.NationalId,
+                ErrorMessage: errorEl.GetString() ?? "El documento no pudo ser verificado.");
+
+        var tipoStr = root.TryGetProperty("document_type", out var tipoEl) ? tipoEl.GetString() : "NationalId";
+        var tipo = tipoStr == "Passport" ? DocumentType.Passport : DocumentType.NationalId;
+
+        var numeroDoc = root.TryGetProperty("document_number", out var num) ? num.GetString() : null;
+        var nombres = root.TryGetProperty("full_names", out var names) ? names.GetString() : null;
 
         DateOnly? fechaNac = null;
         if (root.TryGetProperty("birth_date", out var fechaEl) &&
             DateOnly.TryParse(fechaEl.GetString(), out var f))
             fechaNac = f;
 
+        // Verificar que los campos obligatorios estén presentes
+        if (string.IsNullOrWhiteSpace(numeroDoc) || string.IsNullOrWhiteSpace(nombres) || fechaNac is null)
+            return new KycExtractionResult(
+                Success: false,
+                DocumentNumber: null,
+                ExtractedNames: null,
+                BirthDate: null,
+                DocumentType: tipo,
+                ErrorMessage: "No se pudieron extraer todos los campos requeridos del documento.");
+
         return new KycExtractionResult(
-            Success:        true,
-            DocumentNumber: root.TryGetProperty("document_number", out var num)   ? num.GetString()  : null,
-            ExtractedNames: root.TryGetProperty("full_names",       out var names) ? names.GetString() : null,
-            BirthDate:      fechaNac,
-            DocumentType:   tipo,
-            ErrorMessage:   null
+            Success: true,
+            DocumentNumber: numeroDoc,
+            ExtractedNames: nombres,
+            BirthDate: fechaNac,
+            DocumentType: tipo,
+            ErrorMessage: null
         );
     }
 
@@ -170,8 +190,8 @@ public class KycService : IKycService
     private static KycExtractionResult GenerarMockCoherente(string objectKey)
     {
         // Usa el hash del objectKey para generar datos ficticios pero deterministas por documento
-        var seed  = Math.Abs(objectKey.GetHashCode());
-        var rng   = new Random(seed);
+        var seed = Math.Abs(objectKey.GetHashCode());
+        var rng = new Random(seed);
 
         var nombres = new[]
         {
@@ -182,19 +202,19 @@ public class KycService : IKycService
             "Valentina Gómez Castillo"
         };
 
-        var numeroDoc    = rng.Next(10_000_000, 99_999_999).ToString();
-        var añoNac       = rng.Next(1975, 2000);
-        var mesNac       = rng.Next(1, 13);
-        var diaNac       = rng.Next(1, 29);
+        var numeroDoc = rng.Next(10_000_000, 99_999_999).ToString();
+        var añoNac = rng.Next(1975, 2000);
+        var mesNac = rng.Next(1, 13);
+        var diaNac = rng.Next(1, 29);
         var nombreElegido = nombres[rng.Next(nombres.Length)];
 
         return new KycExtractionResult(
-            Success:        true,
+            Success: true,
             DocumentNumber: numeroDoc,
             ExtractedNames: nombreElegido,
-            BirthDate:      new DateOnly(añoNac, mesNac, diaNac),
-            DocumentType:   DocumentType.NationalId,
-            ErrorMessage:   null
+            BirthDate: new DateOnly(añoNac, mesNac, diaNac),
+            DocumentType: DocumentType.NationalId,
+            ErrorMessage: null
         );
     }
 
@@ -202,25 +222,21 @@ public class KycService : IKycService
 
     private sealed class GeminiResponse
     {
-        [JsonPropertyName("candidates")]
-        public List<GeminiCandidate>? Candidates { get; set; }
+        [JsonPropertyName("candidates")] public List<GeminiCandidate>? Candidates { get; set; }
     }
 
     private sealed class GeminiCandidate
     {
-        [JsonPropertyName("content")]
-        public GeminiContent? Content { get; set; }
+        [JsonPropertyName("content")] public GeminiContent? Content { get; set; }
     }
 
     private sealed class GeminiContent
     {
-        [JsonPropertyName("parts")]
-        public List<GeminiPart>? Parts { get; set; }
+        [JsonPropertyName("parts")] public List<GeminiPart>? Parts { get; set; }
     }
 
     private sealed class GeminiPart
     {
-        [JsonPropertyName("text")]
-        public string? Text { get; set; }
+        [JsonPropertyName("text")] public string? Text { get; set; }
     }
 }

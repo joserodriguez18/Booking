@@ -57,6 +57,24 @@
 
         <!-- Registro -->
         <form id="form-register" class="hidden space-y-4" onsubmit="doRegister(event)">
+          <!-- Selector de rol -->
+          <div>
+            <label class="text-sm font-medium text-gray-700 block mb-2">¿Cómo quieres usar la plataforma?</label>
+            <div class="grid grid-cols-2 gap-3">
+              <label class="flex flex-col items-center gap-1.5 p-3 border-2 border-gray-200 rounded-xl cursor-pointer text-center transition-all hover:border-rose-300 has-[:checked]:border-rose-500 has-[:checked]:bg-rose-50">
+                <input type="radio" name="role" value="Guest" checked class="sr-only">
+                <span class="text-2xl">🏖️</span>
+                <span class="text-xs font-semibold text-gray-700">Quiero reservar</span>
+                <span class="text-xs text-gray-400">Soy cliente</span>
+              </label>
+              <label class="flex flex-col items-center gap-1.5 p-3 border-2 border-gray-200 rounded-xl cursor-pointer text-center transition-all hover:border-rose-300 has-[:checked]:border-rose-500 has-[:checked]:bg-rose-50">
+                <input type="radio" name="role" value="Owner" class="sr-only">
+                <span class="text-2xl">🏠</span>
+                <span class="text-xs font-semibold text-gray-700">Quiero publicar</span>
+                <span class="text-xs text-gray-400">Soy propietario</span>
+              </label>
+            </div>
+          </div>
           <div>
             <label class="text-sm font-medium text-gray-700 block mb-1.5">Nombre completo</label>
             <input name="name" type="text" required autocomplete="name"
@@ -125,13 +143,15 @@
 
     async function doRegister(e) {
       e.preventDefault();
-      const f = e.target;
-      const btn = document.getElementById('btn-register');
+      const f    = e.target;
+      const role = f.querySelector('input[name="role"]:checked').value;
+      const btn  = document.getElementById('btn-register');
       btn.textContent = 'Creando cuenta...'; btn.disabled = true;
       try {
-        auth.save(await api.register(f.name.value, f.email.value, f.password.value));
+        auth.save(await api.register(f.name.value, f.email.value, f.password.value, role));
         toast('¡Cuenta creada! Bienvenido 🎉');
-        setTimeout(() => window.location.href = 'index.html', 600);
+        const destino = role === 'Owner' ? 'dashboard.html' : 'index.html';
+        setTimeout(() => window.location.href = qs.get('next') || destino, 600);
       } catch (err) {
         toast(err.message, 'error');
         btn.textContent = 'Crear cuenta'; btn.disabled = false;

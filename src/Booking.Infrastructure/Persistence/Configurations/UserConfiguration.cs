@@ -52,6 +52,13 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .HasColumnName("actualizado_en")
             .HasColumnType("timestamp with time zone");
 
+        builder.Property(u => u.NumeroDocumento)
+            .HasColumnName("numero_documento")
+            .HasMaxLength(50);
+
+        builder.Property(u => u.FechaNacimiento)
+            .HasColumnName("fecha_nacimiento");
+
         // Propiedad calculada en memoria — no se persiste
         builder.Ignore(u => u.IsIdentityVerified);
     }

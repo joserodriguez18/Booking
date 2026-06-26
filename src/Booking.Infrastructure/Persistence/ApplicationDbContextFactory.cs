@@ -10,7 +10,7 @@ public sealed class ApplicationDbContextFactory : IDesignTimeDbContextFactory<Ap
     {
         // Cadena de conexión de diseño — solo para generación de migraciones
         var cadenaConexion = Environment.GetEnvironmentVariable("CONNECTION_STRING")
-            ?? "Host=localhost;Port=5432;Database=booking_db;Username=booking_user;Password=booking_pass";
+            ?? "Host=127.0.0.1;Port=5433;Database=booking_db;Username=postgres;Password=password";
 
         var opciones = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseNpgsql(cadenaConexion, npgsql =>
