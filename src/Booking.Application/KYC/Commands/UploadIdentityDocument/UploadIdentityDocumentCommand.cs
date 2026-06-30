@@ -47,23 +47,23 @@ public sealed class UploadIdentityDocumentCommandHandler
             throw new DomainException("La identidad de este usuario ya fue verificada.");
 
         // 1. Sube todos los archivos a MinIO (almacenamiento seguro temporal)
-        var objectKeys = new List<string>(req.Archivos.Count);
+        var imagenes = new List<KycImagen>(req.Archivos.Count);
         foreach (var archivo in req.Archivos)
         {
             var key = await _storage.UploadFileAsync(
                 archivo.Stream, archivo.FileName, archivo.ContentType, "kyc", ct);
-            objectKeys.Add(key);
+            imagenes.Add(new KycImagen(key, archivo.ContentType));
         }
 
         // 2. Crea el registro del documento usando la primera clave como referencia
         var documento = IdentityDocument.CreatePending(req.UserId, req.DocumentType);
-        documento.SetDocumentUrl(objectKeys[0]);
+        documento.SetDocumentUrl(imagenes[0].ObjectKey);
         _ctx.DocumentosIdentidad.Add(documento);
 
         usuario.SetKycPending();
 
         // 3. Procesa todas las imágenes con IA en una sola llamada (cara frontal + trasera, etc.)
-        var resultado = await _kyc.ProcessIdentityDocumentAsync(objectKeys, ct);
+        var resultado = await _kyc.ProcessIdentityDocumentAsync(imagenes, ct);
 
         if (resultado.Success)
         {
@@ -91,8 +91,8 @@ public sealed class UploadIdentityDocumentCommandHandler
         }
 
         // 4. Borrado seguro de todos los archivos post-verificación (requisito de privacidad)
-        foreach (var key in objectKeys)
-            await _storage.DeleteFileAsync(key, ct);
+        foreach (var imagen in imagenes)
+            await _storage.DeleteFileAsync(imagen.ObjectKey, ct);
         documento.MarkDocumentAsDeleted();
 
         await _ctx.SaveChangesAsync(ct);

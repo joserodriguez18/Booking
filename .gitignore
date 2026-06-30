@@ -1,5 +1,6 @@
 # Secrets — NEVER commit
 .env
+.CLAUDE.md
 
 # .NET build outputs
 bin/

@@ -12,6 +12,9 @@ public interface IKycService
     /// Procesa una o más imágenes del documento de identidad (ej. cara frontal y trasera)
     /// y extrae los datos mediante IA en una sola llamada.
     /// </summary>
-    /// <param name="objectKeys">Claves de los objetos en MinIO (mínimo 1, máximo 3).</param>
-    Task<KycExtractionResult> ProcessIdentityDocumentAsync(IReadOnlyList<string> objectKeys, CancellationToken ct = default);
+    /// <param name="imagenes">Imágenes a procesar (mínimo 1, máximo 3), con su tipo de contenido original.</param>
+    Task<KycExtractionResult> ProcessIdentityDocumentAsync(IReadOnlyList<KycImagen> imagenes, CancellationToken ct = default);
 }
+
+/// <summary>Referencia a una imagen subida a MinIO junto con su tipo de contenido original (ej. image/png, image/jpeg).</summary>
+public sealed record KycImagen(string ObjectKey, string ContentType);

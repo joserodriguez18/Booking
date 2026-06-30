@@ -13,8 +13,8 @@ namespace Booking.Infrastructure.Services.AI;
 
 /// <summary>
 /// Servicio KYC que extrae datos de documentos de identidad mediante IA.
-/// - Si GEMINI_API_KEY está configurada con una clave real → llama a Gemini Vision API.
-/// - Si la clave es el placeholder → devuelve un mock coherente para desarrollo.
+/// - Si KYC_MOCK=true → devuelve datos ficticios deterministas (desarrollo/demo).
+/// - Si KYC_MOCK=false (o ausente) → llama a Gemini Vision API con la clave configurada.
 /// </summary>
 public class KycService : IKycService
 {
@@ -23,6 +23,7 @@ public class KycService : IKycService
     private readonly IMinioClient _minio;
     private readonly string _bucketKyc;
     private readonly HttpClient _httpClient;
+    private readonly bool _mockActivo;
 
     private const string GeminiEndpointBase =
         "https://generativelanguage.googleapis.com/v1beta/models/{0}:generateContent?key={1}";
@@ -34,22 +35,22 @@ public class KycService : IKycService
         _apiKey = config["GEMINI_API_KEY"] ?? string.Empty;
         _modelo = config["GEMINI_MODEL"] ?? "gemini-2.0-flash";
         _httpClient = httpFactory.CreateClient("GeminiClient");
+        _mockActivo = string.Equals(config["KYC_MOCK"], "true", StringComparison.OrdinalIgnoreCase);
     }
 
     public async Task<KycExtractionResult> ProcessIdentityDocumentAsync(
-        IReadOnlyList<string> objectKeys,
+        IReadOnlyList<KycImagen> imagenes,
         CancellationToken ct = default)
     {
-        if (objectKeys is null || objectKeys.Count == 0)
-            throw new ArgumentException("Se requiere al menos un objectKey para el proceso KYC.");
+        if (imagenes is null || imagenes.Count == 0)
+            throw new ArgumentException("Se requiere al menos una imagen para el proceso KYC.");
 
-        // Modo desarrollo: clave no configurada o es el placeholder de .env.example
-        if (string.IsNullOrWhiteSpace(_apiKey) || _apiKey.Contains("YOUR_"))
-            return GenerarMockCoherente(objectKeys[0]);
+        if (_mockActivo)
+            return GenerarMockCoherente(imagenes[0].ObjectKey);
 
         try
         {
-            return await LlamarGeminiAsync(objectKeys, ct);
+            return await LlamarGeminiAsync(imagenes, ct);
         }
         catch (Exception ex)
         {
@@ -65,25 +66,27 @@ public class KycService : IKycService
 
     // ── Llamada real a Gemini Vision ─────────────────────────────────────────
 
-    private async Task<KycExtractionResult> LlamarGeminiAsync(IReadOnlyList<string> objectKeys, CancellationToken ct)
+    private async Task<KycExtractionResult> LlamarGeminiAsync(IReadOnlyList<KycImagen> imagenes, CancellationToken ct)
     {
-        // 1. Descargar todas las imágenes desde MinIO para enviarlas como inline_data
-        var imagenesBase64 = new List<string>(objectKeys.Count);
-        foreach (var key in objectKeys)
+        // 1. Descargar todas las imágenes desde MinIO para enviarlas como inline_data,
+        //    conservando el mime type real de cada una (png, jpeg, webp, heic, etc.)
+        var imagenesBase64 = new List<(string MimeType, string Data)>(imagenes.Count);
+        foreach (var imagen in imagenes)
         {
             using var ms = new MemoryStream();
             var getArgs = new GetObjectArgs()
                 .WithBucket(_bucketKyc)
-                .WithObject(key)
+                .WithObject(imagen.ObjectKey)
                 .WithCallbackStream(stream => stream.CopyTo(ms));
 
             await _minio.GetObjectAsync(getArgs, ct);
-            imagenesBase64.Add(Convert.ToBase64String(ms.ToArray()));
+            var mimeType = DeterminarMimeType(imagen.ContentType, imagen.ObjectKey);
+            imagenesBase64.Add((mimeType, Convert.ToBase64String(ms.ToArray())));
         }
 
         // 2. Construir el cuerpo de la solicitud para Gemini Vision
         // Se incluyen todas las imágenes (cara frontal, trasera, etc.) como partes del mismo mensaje
-        var intro = objectKeys.Count > 1
+        var intro = imagenes.Count > 1
             ? "Se te proporcionan varias imágenes del mismo documento de identidad (cara frontal y trasera u otras). Analiza todas las imágenes en conjunto."
             : "Analiza esta imagen de un documento de identidad.";
 
@@ -101,9 +104,9 @@ public class KycService : IKycService
             "}";
 
         var partes = new List<object> { new { text = prompt } };
-        partes.AddRange(imagenesBase64.Select(b64 => (object)new
+        partes.AddRange(imagenesBase64.Select(img => (object)new
         {
-            inline_data = new { mime_type = "image/jpeg", data = b64 }
+            inline_data = new { mime_type = img.MimeType, data = img.Data }
         }));
 
         var requestBody = new
@@ -183,6 +186,29 @@ public class KycService : IKycService
             DocumentType: tipo,
             ErrorMessage: null
         );
+    }
+
+    // Mime types de imagen soportados por Gemini Vision para inline_data.
+    private static readonly HashSet<string> MimesSoportados = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "image/png", "image/jpeg", "image/webp", "image/heic", "image/heif"
+    };
+
+    // Usa el content type subido por el cliente si es válido; si no, lo infiere por la extensión del archivo.
+    private static string DeterminarMimeType(string contentType, string objectKey)
+    {
+        if (!string.IsNullOrWhiteSpace(contentType) && MimesSoportados.Contains(contentType))
+            return contentType;
+
+        return Path.GetExtension(objectKey).ToLowerInvariant() switch
+        {
+            ".png"            => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".webp"           => "image/webp",
+            ".heic"           => "image/heic",
+            ".heif"           => "image/heif",
+            _                 => "image/jpeg"
+        };
     }
 
     // ── Mock inteligente para entorno de desarrollo ──────────────────────────

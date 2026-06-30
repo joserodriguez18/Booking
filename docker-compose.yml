@@ -24,6 +24,7 @@ services:
       - MINIO_PUBLIC_ENDPOINT=${MINIO_PUBLIC_ENDPOINT}
       - Gemini__ApiKey=${GEMINI_API_KEY}
       - Gemini__Model=${GEMINI_MODEL}
+      - KYC_MOCK=${KYC_MOCK:-false}
       - Smtp__Host=${SMTP_HOST}
       - Smtp__Port=${SMTP_PORT}
       - Smtp__User=${SMTP_USER}
