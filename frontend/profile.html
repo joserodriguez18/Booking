@@ -154,7 +154,7 @@
     if (!esOwner) {
       const kycTextEl = document.getElementById('kyc-text');
       if (kycTextEl) kycTextEl.textContent =
-        ({ NotStarted: 'Sin verificar', Pending: 'En revisión', Verified: 'Verificado', Rejected: 'Rechazado' })[u.kycStatus] || u.kycStatus;
+        ({ NotStarted: 'Sin verificar', Pending: 'En revisión', Approved: 'Verificado', Rejected: 'Rechazado' })[u.kycStatus] || u.kycStatus;
     }
 
     let wishLoaded = false;
@@ -367,8 +367,8 @@
           resEl.classList.remove('hidden');
           toast('¡Identidad verificada exitosamente! ✅');
           btn.textContent = '✅ Verificado';
-          await actualizarKycEnLocalStorage('Verified');
-          document.getElementById('kyc-badge').innerHTML = kycBadge('Verified');
+          await actualizarKycEnLocalStorage('Approved');
+          document.getElementById('kyc-badge').innerHTML = kycBadge('Approved');
           document.getElementById('kyc-text').textContent = 'Verificado';
         } else {
           // La API respondió 200 pero la verificación falló (ej: error Gemini, documento ilegible)

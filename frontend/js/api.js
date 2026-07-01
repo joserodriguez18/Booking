@@ -128,7 +128,7 @@ function kycBadge(s) {
     const m = {
         NotStarted: ['bg-gray-100 text-gray-600', 'Sin verificar'],
         Pending: ['bg-amber-100 text-amber-700', 'En revisión'],
-        Verified: ['bg-emerald-100 text-emerald-700', 'Verificado ✓'],
+        Approved: ['bg-emerald-100 text-emerald-700', 'Verificado ✓'],
         Rejected: ['bg-red-100 text-red-600', 'Rechazado']
     };
     const [cls, label] = m[s] || ['bg-gray-100 text-gray-600', s || 'Desconocido'];

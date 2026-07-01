@@ -43,11 +43,14 @@ public sealed class User : BaseEntity
         SetUpdatedAt();
     }
 
-    public void ApproveKyc(string? numeroDocumento = null, DateOnly? fechaNacimiento = null)
+    public void ApproveKyc(string? numeroDocumento = null, DateOnly? fechaNacimiento = null, string? nombreVerificado = null)
     {
         KycStatus        = KycStatus.Approved;
         NumeroDocumento  = numeroDocumento;
         FechaNacimiento  = fechaNacimiento;
+        // El nombre leído del documento reemplaza el nombre ingresado (o el placeholder) en el registro.
+        if (!string.IsNullOrWhiteSpace(nombreVerificado))
+            Name = nombreVerificado;
         SetUpdatedAt();
     }
 

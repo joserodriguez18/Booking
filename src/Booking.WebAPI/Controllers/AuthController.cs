@@ -50,6 +50,6 @@ public sealed class AuthController : ControllerBase
 
 // ── DTOs de request ───────────────────────────────────────────────────────────
 
-public sealed record RegisterRequest(string Name, string Email, string Password, UserRole Role);
+public sealed record RegisterRequest(string? Name, string Email, string Password, UserRole Role);
 public sealed record LoginRequest(string Email, string Password);
 public sealed record RefreshRequest(string Token);

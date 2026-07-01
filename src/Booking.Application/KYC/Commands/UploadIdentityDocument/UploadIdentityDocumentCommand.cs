@@ -71,7 +71,7 @@ public sealed class UploadIdentityDocumentCommandHandler
                 resultado.DocumentNumber!,
                 resultado.ExtractedNames!,
                 resultado.BirthDate!.Value);
-            usuario.ApproveKyc(resultado.DocumentNumber, resultado.BirthDate);
+            usuario.ApproveKyc(resultado.DocumentNumber, resultado.BirthDate, resultado.ExtractedNames);
 
             _ctx.Notificaciones.Add(Notification.Create(
                 usuario.Id,

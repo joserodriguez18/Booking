@@ -75,12 +75,15 @@
               </label>
             </div>
           </div>
-          <div>
+          <div id="reg-name-wrap">
             <label class="text-sm font-medium text-gray-700 block mb-1.5">Nombre completo</label>
             <input name="name" type="text" required autocomplete="name"
               placeholder="Juan Pérez"
               class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all">
           </div>
+          <p id="reg-guest-note" class="hidden text-xs text-gray-400 -mt-2">
+            Tu nombre se completará automáticamente al verificar tu identidad (KYC) antes de tu primera reserva.
+          </p>
           <div>
             <label class="text-sm font-medium text-gray-700 block mb-1.5">Correo electrónico</label>
             <input name="email" type="email" required autocomplete="email"
@@ -93,6 +96,12 @@
               placeholder="Mínimo 8 caracteres"
               class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all">
             <p class="text-xs text-gray-400 mt-1.5">Mínimo 8 caracteres, una mayúscula y un número.</p>
+          </div>
+          <div id="reg-confirm-wrap" class="hidden">
+            <label class="text-sm font-medium text-gray-700 block mb-1.5">Confirmar contraseña</label>
+            <input name="passwordConfirm" type="password" minlength="8"
+              placeholder="Repite tu contraseña"
+              class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all">
           </div>
           <button type="submit" id="btn-register"
             class="w-full bg-rose-500 hover:bg-rose-600 text-white py-3 rounded-xl font-semibold text-sm transition-colors mt-2">
@@ -113,6 +122,22 @@
 
     const qs = new URLSearchParams(location.search);
     if (qs.get('r')) setTab('register');
+
+    function toggleRegisterFields() {
+      const esGuest    = document.querySelector('input[name="role"]:checked').value === 'Guest';
+      const nameInput  = document.querySelector('#reg-name-wrap input[name="name"]');
+      const confirmado = document.querySelector('#reg-confirm-wrap input[name="passwordConfirm"]');
+
+      document.getElementById('reg-name-wrap').classList.toggle('hidden', esGuest);
+      document.getElementById('reg-guest-note').classList.toggle('hidden', !esGuest);
+      nameInput.required = !esGuest;
+
+      document.getElementById('reg-confirm-wrap').classList.toggle('hidden', !esGuest);
+      confirmado.required = esGuest;
+    }
+    document.querySelectorAll('#form-register input[name="role"]')
+      .forEach(r => r.addEventListener('change', toggleRegisterFields));
+    toggleRegisterFields();
 
     function setTab(t) {
       document.getElementById('form-login').classList.toggle('hidden', t !== 'login');
@@ -146,9 +171,16 @@
       const f    = e.target;
       const role = f.querySelector('input[name="role"]:checked').value;
       const btn  = document.getElementById('btn-register');
+
+      if (role === 'Guest' && f.password.value !== f.passwordConfirm.value) {
+        toast('Las contraseñas no coinciden', 'error');
+        return;
+      }
+
       btn.textContent = 'Creando cuenta...'; btn.disabled = true;
       try {
-        auth.save(await api.register(f.name.value, f.email.value, f.password.value, role));
+        const nombre = role === 'Owner' ? f.name.value : null;
+        auth.save(await api.register(nombre, f.email.value, f.password.value, role));
         toast('¡Cuenta creada! Bienvenido 🎉');
         const destino = role === 'Owner' ? 'dashboard.html' : 'index.html';
         setTimeout(() => window.location.href = qs.get('next') || destino, 600);

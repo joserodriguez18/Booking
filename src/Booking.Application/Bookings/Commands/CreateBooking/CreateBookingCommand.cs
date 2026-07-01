@@ -52,6 +52,9 @@ public sealed class CreateBookingCommandHandler : IRequestHandler<CreateBookingC
         var huesped = await _ctx.Usuarios.FindAsync([req.GuestId], ct)
             ?? throw new NotFoundException("Usuario", req.GuestId);
 
+        if (!huesped.IsIdentityVerified)
+            throw new DomainException("Debes verificar tu identidad (KYC) antes de poder reservar.");
+
         // Obtiene reservas confirmadas existentes para la propiedad (anti double-booking)
         var reservasExistentes = await _ctx.Reservas
             .Where(r => r.PropertyId == req.PropertyId && r.Status == BookingStatus.Confirmed)

@@ -13,7 +13,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Booking.Application.Auth.Commands.Register;
 
 public sealed record RegisterCommand(
-    string   Name,
+    string?  Name,
     string   Email,
     string   Password,
     UserRole Role
@@ -25,9 +25,15 @@ public sealed class RegisterCommandValidator : AbstractValidator<RegisterCommand
 {
     public RegisterCommandValidator()
     {
+        // Los propietarios deben identificarse desde el registro; los huéspedes solo dan correo y
+        // contraseña — su nombre real se completa al verificar su identidad (KYC) antes de reservar.
         RuleFor(x => x.Name)
-            .NotEmpty().WithMessage("El nombre es obligatorio.")
-            .MaximumLength(200).WithMessage("El nombre no puede superar 200 caracteres.");
+            .NotEmpty().WithMessage("El nombre es obligatorio para propietarios.")
+            .When(x => x.Role == UserRole.Owner);
+
+        RuleFor(x => x.Name)
+            .MaximumLength(200).WithMessage("El nombre no puede superar 200 caracteres.")
+            .When(x => !string.IsNullOrWhiteSpace(x.Name));
 
         RuleFor(x => x.Email)
             .NotEmpty().WithMessage("El correo electrónico es obligatorio.")
@@ -69,7 +75,11 @@ public sealed class RegisterCommandHandler : IRequestHandler<RegisterCommand, To
         if (existe)
             throw new DomainException("Ya existe una cuenta con ese correo electrónico.");
 
-        var usuario = User.Create(req.Name, req.Email, _hasher.Hash(req.Password), req.Role);
+        // Si no se dio nombre (registro simplificado de huésped), se usa un placeholder temporal;
+        // el nombre real lo reemplaza el dato leído del documento cuando se aprueba el KYC.
+        var nombre = string.IsNullOrWhiteSpace(req.Name) ? req.Email.Split('@')[0] : req.Name;
+
+        var usuario = User.Create(nombre, req.Email, _hasher.Hash(req.Password), req.Role);
         _ctx.Usuarios.Add(usuario);
 
         // Genera tokens y guarda el refresh token (hash SHA-256)
